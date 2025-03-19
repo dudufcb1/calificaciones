@@ -1,0 +1,45 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Livewire\CampoFormativo\Index as CampoFormativoIndex;
+use App\Livewire\CampoFormativo\Form as CampoFormativoForm;
+use App\Livewire\Alumno\Index as AlumnoIndex;
+use App\Livewire\Alumno\Form as AlumnoForm;
+use App\Livewire\Evaluacion\Form as EvaluacionForm;
+use App\Livewire\Evaluacion\Index as EvaluacionIndex;
+use App\Livewire\Grupo\Index as GrupoIndex;
+use App\Livewire\Grupo\Form as GrupoForm;
+
+Route::view('/', 'welcome');
+
+Route::view('dashboard', 'dashboard')
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
+
+Route::view('profile', 'profile')
+    ->middleware(['auth'])
+    ->name('profile');
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
+
+    Route::get('/campos-formativos', CampoFormativoIndex::class)->name('campos-formativos.index');
+    Route::get('/campos-formativos/create', CampoFormativoForm::class)->name('campos-formativos.create');
+    Route::get('/campos-formativos/{campoFormativoId}/edit', CampoFormativoForm::class)->name('campos-formativos.edit');
+
+    Route::get('/alumnos', AlumnoIndex::class)->name('alumnos.index');
+    Route::get('/alumnos/create', AlumnoForm::class)->name('alumnos.create');
+    Route::get('/alumnos/{alumnoId}/edit', AlumnoForm::class)->name('alumnos.edit');
+
+    Route::get('/evaluaciones', EvaluacionIndex::class)->name('evaluaciones.index');
+    Route::get('/evaluaciones/create', EvaluacionForm::class)->name('evaluaciones.create');
+    Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
+
+    Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
+    Route::get('/grupos/create', GrupoForm::class)->name('grupos.create');
+    Route::get('/grupos/{grupoId}/edit', GrupoForm::class)->name('grupos.edit');
+});
+
+require __DIR__.'/auth.php';

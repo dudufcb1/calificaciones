@@ -1,0 +1,31 @@
+<?php
+
+return [
+    'welcome' => 'Bienvenido',
+    'login' => 'Iniciar sesión',
+    'register' => 'Registrarse',
+    'dashboard' => 'Tablero',
+    'logged_in' => '¡Has iniciado sesión!',
+    'profile' => 'Perfil',
+    'profile_information' => 'Información del perfil',
+    'update_profile' => 'Actualiza la información de tu cuenta y dirección de correo electrónico.',
+    'name' => 'Nombre',
+    'email' => 'Correo electrónico',
+    'save' => 'Guardar',
+    'update_password' => 'Actualizar contraseña',
+    'ensure_password' => 'Asegúrate de que tu cuenta esté usando una contraseña larga y aleatoria para mantenerla segura.',
+    'current_password' => 'Contraseña actual',
+    'new_password' => 'Nueva contraseña',
+    'confirm_password' => 'Confirmar contraseña',
+    'delete_account' => 'Eliminar cuenta',
+    'delete_account_warning' => 'Una vez que tu cuenta sea eliminada, todos sus recursos y datos serán eliminados permanentemente. Antes de eliminar tu cuenta, por favor descarga cualquier dato o información que desees conservar.',
+    'confirm_delete_account' => '¿Estás seguro de que deseas eliminar tu cuenta?',
+    'confirm_delete_account_warning' => 'Una vez que tu cuenta sea eliminada, todos sus recursos y datos serán eliminados permanentemente. Por favor, ingresa tu contraseña para confirmar que deseas eliminar tu cuenta permanentemente.',
+    'password' => 'Contraseña',
+    'cancel' => 'Cancelar',
+    'saved' => 'Guardado.',
+    'email_unverified' => 'Tu dirección de correo electrónico no está verificada.',
+    'resend_verification' => 'Haz clic aquí para reenviar el correo de verificación.',
+    'verification_link_sent' => 'Se ha enviado un nuevo enlace de verificación a tu dirección de correo electrónico.',
+    // Agrega más traducciones aquí
+];
