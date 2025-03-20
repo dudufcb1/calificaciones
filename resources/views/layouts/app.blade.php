@@ -16,6 +16,44 @@
         @livewireStyles
     </head>
     <body class="font-sans antialiased bg-gray-50" x-data="{ sidebarOpen: false }">
+        <!-- Notificaciones -->
+        <div x-data="{ notification: false, message: '', type: 'success' }"
+             x-on:notify.window="notification = true; message = $event.detail.message; type = $event.detail.type; setTimeout(() => { notification = false }, 3000)"
+             class="fixed top-4 right-4 z-50">
+            <div x-show="notification"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 transform scale-90"
+                 x-transition:enter-end="opacity-100 transform scale-100"
+                 x-transition:leave="transition ease-in duration-300"
+                 x-transition:leave-start="opacity-100 transform scale-100"
+                 x-transition:leave-end="opacity-0 transform scale-90"
+                 :class="{ 'bg-green-500': type === 'success', 'bg-red-500': type === 'error', 'bg-blue-500': type === 'info' }"
+                 class="rounded-md px-4 py-3 text-white shadow-md">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <template x-if="type === 'success'">
+                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </template>
+                        <template x-if="type === 'error'">
+                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </template>
+                        <template x-if="type === 'info'">
+                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </template>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium text-white" x-text="message"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="min-h-screen flex">
             <!-- Mobile sidebar backdrop -->
             <div

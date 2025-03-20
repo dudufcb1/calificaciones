@@ -36,6 +36,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/evaluaciones', EvaluacionIndex::class)->name('evaluaciones.index');
     Route::get('/evaluaciones/create', EvaluacionForm::class)->name('evaluaciones.create');
     Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
+    Route::get('/evaluaciones/{evaluacionId}/show', \App\Livewire\Evaluacion\Show::class)->name('evaluaciones.show');
 
     Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
     Route::get('/grupos/create', GrupoForm::class)->name('grupos.create');

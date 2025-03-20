@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Evaluacion extends Model
 {
@@ -16,13 +17,14 @@ class Evaluacion extends Model
 
     protected $fillable = [
         'campo_formativo_id',
-        'alumno_id',
-        'promedio_final',
+        'titulo',
+        'descripcion',
+        'fecha_evaluacion',
         'is_draft',
     ];
 
     protected $casts = [
-        'promedio_final' => 'decimal:2',
+        'fecha_evaluacion' => 'date',
         'is_draft' => 'boolean',
     ];
 
@@ -31,16 +33,16 @@ class Evaluacion extends Model
         return $this->belongsTo(CampoFormativo::class);
     }
 
-    public function alumno(): BelongsTo
-    {
-        return $this->belongsTo(Alumno::class);
-    }
-
     public function criterios(): BelongsToMany
     {
         return $this->belongsToMany(Criterio::class, 'evaluacion_criterio')
                     ->withPivot(['calificacion', 'calificacion_ponderada'])
                     ->withTimestamps();
+    }
+
+    public function detalles(): HasMany
+    {
+        return $this->hasMany(EvaluacionDetalle::class);
     }
 
     public function recalcularPromedio(): void
