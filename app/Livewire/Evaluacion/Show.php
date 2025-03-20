@@ -88,10 +88,7 @@ class Show extends Component
             }
         }
 
-        // Recargar los datos para refrescar la vista
-        $this->loadEvaluacion();
-
-        // Notificar al usuario
+        // En lugar de recargar todos los datos, solo notificamos al usuario
         $this->dispatch('notify', [
             'type' => 'success',
             'message' => 'Promedios actualizados correctamente'

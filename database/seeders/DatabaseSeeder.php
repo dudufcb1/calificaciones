@@ -20,19 +20,19 @@ class DatabaseSeeder extends Seeder
     {
         // Crear usuario administrador si no existe
         $user = \App\Models\User::firstOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'coringasmx@gmail.com'],
             [
                 'name' => 'Administrador',
-                'password' => Hash::make('password'),
+                'password' => Hash::make('M3lomelo!'),
                 'email_verified_at' => now(),
+                'status' => 'active',
+                'role' => 'admin',
+                'is_confirmed' => true,
             ]
         );
 
         // Ejecutar los seeders con el usuario administrador como contexto
         $this->call([
-            CampoFormativoSeeder::class,
-            GrupoSeeder::class,
-            AlumnoSeeder::class,
             AssignUserIdToExistingDataSeeder::class,
         ]);
 

@@ -27,6 +27,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status',
+        'role',
+        'deactivation_reason',
+        'is_confirmed',
     ];
 
     /**
@@ -49,6 +53,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_confirmed' => 'boolean',
         ];
     }
 
@@ -90,5 +95,21 @@ class User extends Authenticatable
     public function evaluaciones(): HasMany
     {
         return $this->hasMany(Evaluacion::class);
+    }
+
+    /**
+     * Check if the user is active
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    /**
+     * Check if the user is an admin
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
     }
 }

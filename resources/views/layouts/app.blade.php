@@ -134,6 +134,15 @@
                         </svg>
                         Grupos
                     </a>
+
+                    @if(auth()->user()->isAdmin())
+                        <a href="{{ route('usuarios.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('usuarios.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            Gestión de Usuarios
+                        </a>
+                    @endif
                 </nav>
 
                 <!-- Logout -->

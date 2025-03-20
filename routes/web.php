@@ -9,6 +9,7 @@ use App\Livewire\Evaluacion\Form as EvaluacionForm;
 use App\Livewire\Evaluacion\Index as EvaluacionIndex;
 use App\Livewire\Grupo\Index as GrupoIndex;
 use App\Livewire\Grupo\Form as GrupoForm;
+use App\Livewire\Usuario\Index as UsuarioIndex;
 
 Route::view('/', 'welcome');
 
@@ -24,6 +25,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
+
+    // Rutas de administración de usuarios (solo para administradores)
+    Route::get('/usuarios', UsuarioIndex::class)->name('usuarios.index');
 
     // Rutas protegidas por el middleware 'owner' para verificar la propiedad
     Route::middleware([\App\Http\Middleware\CheckResourceOwnership::class])->group(function () {
