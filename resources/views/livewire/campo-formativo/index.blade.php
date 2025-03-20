@@ -42,6 +42,10 @@
                                        class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded">
                                         Editar
                                     </a>
+                                    <button wire:click="duplicate({{ $campo->id }})"
+                                            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded">
+                                        Duplicar
+                                    </button>
                                     <button wire:click="confirmDelete({{ $campo->id }})"
                                             class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded">
                                         Eliminar

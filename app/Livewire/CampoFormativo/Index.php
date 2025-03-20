@@ -46,4 +46,31 @@ class Index extends Component
     {
         $this->showDeleteModal = false;
     }
+
+    /**
+     * Duplica un campo formativo existente y sus criterios.
+     */
+    public function duplicate($id)
+    {
+        // Obtener el campo formativo original con sus criterios
+        $original = CampoFormativo::with('criterios')->findOrFail($id);
+
+        // Crear una copia del campo formativo
+        $copia = $original->replicate();
+        $copia->nombre = $original->nombre . ' (Copia)';
+        $copia->created_at = now();
+        $copia->updated_at = now();
+        $copia->save();
+
+        // Duplicar los criterios asociados
+        foreach ($original->criterios as $criterio) {
+            $criterioCopia = $criterio->replicate();
+            $criterioCopia->campo_formativo_id = $copia->id;
+            $criterioCopia->created_at = now();
+            $criterioCopia->updated_at = now();
+            $criterioCopia->save();
+        }
+
+        session()->flash('message', 'Campo formativo duplicado correctamente.');
+    }
 }

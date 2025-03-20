@@ -25,22 +25,29 @@ Route::middleware(['auth'])->group(function () {
         return view('dashboard');
     })->name('dashboard');
 
-    Route::get('/campos-formativos', CampoFormativoIndex::class)->name('campos-formativos.index');
-    Route::get('/campos-formativos/create', CampoFormativoForm::class)->name('campos-formativos.create');
-    Route::get('/campos-formativos/{campoFormativoId}/edit', CampoFormativoForm::class)->name('campos-formativos.edit');
+    // Rutas protegidas por el middleware 'owner' para verificar la propiedad
+    Route::middleware([\App\Http\Middleware\CheckResourceOwnership::class])->group(function () {
+        // Rutas de CampoFormativo
+        Route::get('/campos-formativos', CampoFormativoIndex::class)->name('campos-formativos.index');
+        Route::get('/campos-formativos/create', CampoFormativoForm::class)->name('campos-formativos.create');
+        Route::get('/campos-formativos/{campoFormativoId}/edit', CampoFormativoForm::class)->name('campos-formativos.edit');
 
-    Route::get('/alumnos', AlumnoIndex::class)->name('alumnos.index');
-    Route::get('/alumnos/create', AlumnoForm::class)->name('alumnos.create');
-    Route::get('/alumnos/{alumnoId}/edit', AlumnoForm::class)->name('alumnos.edit');
+        // Rutas de Alumno
+        Route::get('/alumnos', AlumnoIndex::class)->name('alumnos.index');
+        Route::get('/alumnos/create', AlumnoForm::class)->name('alumnos.create');
+        Route::get('/alumnos/{alumnoId}/edit', AlumnoForm::class)->name('alumnos.edit');
 
-    Route::get('/evaluaciones', EvaluacionIndex::class)->name('evaluaciones.index');
-    Route::get('/evaluaciones/create', EvaluacionForm::class)->name('evaluaciones.create');
-    Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
-    Route::get('/evaluaciones/{evaluacionId}/show', \App\Livewire\Evaluacion\Show::class)->name('evaluaciones.show');
+        // Rutas de Evaluacion
+        Route::get('/evaluaciones', EvaluacionIndex::class)->name('evaluaciones.index');
+        Route::get('/evaluaciones/create', EvaluacionForm::class)->name('evaluaciones.create');
+        Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
+        Route::get('/evaluaciones/{evaluacionId}/show', \App\Livewire\Evaluacion\Show::class)->name('evaluaciones.show');
 
-    Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
-    Route::get('/grupos/create', GrupoForm::class)->name('grupos.create');
-    Route::get('/grupos/{grupoId}/edit', GrupoForm::class)->name('grupos.edit');
+        // Rutas de Grupo
+        Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
+        Route::get('/grupos/create', GrupoForm::class)->name('grupos.create');
+        Route::get('/grupos/{grupoId}/edit', GrupoForm::class)->name('grupos.edit');
+    });
 });
 
 require __DIR__.'/auth.php';

@@ -88,10 +88,10 @@
 
                 <!-- User profile -->
                 <div class="flex flex-col items-center mt-6 pb-5 border-b border-indigo-800">
-                    <div class="w-14 h-14 flex items-center justify-center rounded-full bg-indigo-800 text-white text-xl uppercase font-bold">
+                    <div class="p-4 w-14 h-14 flex items-center justify-center rounded-full bg-indigo-800 text-white text-xl uppercase font-bold">
                         {{ substr(auth()->user()->name, 0, 1) }}
                     </div>
-                    <h4 class="mt-2 font-medium text-gray-200">{{ auth()->user()->name }}</h4>
+                    <h4 class="mt-2 font-medium text-gray-200 p-4">{{ auth()->user()->name }}</h4>
                 </div>
 
                 <!-- Navigation -->
@@ -177,6 +177,15 @@
                                  x-init="setTimeout(() => show = false, 3000)"
                                  class="mb-4 p-4 bg-green-500 text-white rounded-lg shadow-lg">
                                 {{ session('message') }}
+                            </div>
+                        @endif
+
+                        @if (session()->has('error'))
+                            <div x-data="{ show: true }"
+                                 x-show="show"
+                                 x-init="setTimeout(() => show = false, 5000)"
+                                 class="mb-4 p-4 bg-red-500 text-white rounded-lg shadow-lg">
+                                {{ session('error') }}
                             </div>
                         @endif
 

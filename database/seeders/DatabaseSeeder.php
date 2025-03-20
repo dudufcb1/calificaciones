@@ -7,6 +7,7 @@ use App\Models\Grupo;
 use App\Models\Alumno;
 use App\Models\CampoFormativo;
 use App\Models\Criterio;
+use Illuminate\Support\Facades\Hash;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -17,6 +18,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Crear usuario administrador si no existe
+        $user = \App\Models\User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Administrador',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+            ]
+        );
+
+        // Ejecutar los seeders con el usuario administrador como contexto
+        $this->call([
+            CampoFormativoSeeder::class,
+            GrupoSeeder::class,
+            AlumnoSeeder::class,
+            AssignUserIdToExistingDataSeeder::class,
+        ]);
+
         // Verificar si ya existe un usuario de prueba
         if (User::where('email', 'test@example.com')->doesntExist()) {
             User::factory()->create([

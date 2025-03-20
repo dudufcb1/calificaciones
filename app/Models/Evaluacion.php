@@ -16,17 +16,38 @@ class Evaluacion extends Model
     protected $table = 'evaluaciones';
 
     protected $fillable = [
-        'campo_formativo_id',
         'titulo',
         'descripcion',
         'fecha_evaluacion',
+        'campo_formativo_id',
         'is_draft',
+        'user_id',
     ];
 
     protected $casts = [
         'fecha_evaluacion' => 'date',
         'is_draft' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::addGlobalScope('user', function ($query) {
+            if (auth()->check()) {
+                $query->where('user_id', auth()->id());
+            }
+        });
+
+        static::creating(function ($model) {
+            if (auth()->check() && is_null($model->user_id)) {
+                $model->user_id = auth()->id();
+            }
+        });
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function campoFormativo(): BelongsTo
     {
