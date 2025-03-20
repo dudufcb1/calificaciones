@@ -211,9 +211,10 @@
                                                 </td>
                                                 @foreach($alumno['calificaciones'] as $calIndex => $calificacion)
                                                     <td class="px-2 py-4 whitespace-nowrap text-sm">
-                                                        <input type="number" step="1" min="1" max="100"
+                                                        <input type="number" step="1" min="0" max="100"
                                                             wire:model.live="alumnosEvaluados.{{ $index }}.calificaciones.{{ $calIndex }}.valor"
-                                                            class="block w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                                            class="block w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 @error("alumnosEvaluados.{$index}.calificaciones.{$calIndex}.valor") border-red-500 @enderror">
                                                         @error("alumnosEvaluados.{$index}.calificaciones.{$calIndex}.valor")
                                                             <span class="text-red-500 text-xs">{{ $message }}</span>
                                                         @enderror

@@ -10,10 +10,11 @@ use App\Livewire\Evaluacion\Index as EvaluacionIndex;
 use App\Livewire\Grupo\Index as GrupoIndex;
 use App\Livewire\Grupo\Form as GrupoForm;
 use App\Livewire\Usuario\Index as UsuarioIndex;
+use App\Http\Controllers\DashboardController;
 
 Route::view('/', 'welcome');
 
-Route::view('dashboard', 'dashboard')
+Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
@@ -22,10 +23,6 @@ Route::view('profile', 'profile')
     ->name('profile');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
-
     // Rutas de administración de usuarios (solo para administradores)
     Route::get('/usuarios', UsuarioIndex::class)->name('usuarios.index');
 

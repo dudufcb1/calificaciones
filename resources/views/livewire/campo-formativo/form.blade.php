@@ -1,4 +1,17 @@
 <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <!-- Mensajes de error -->
+    @if (session()->has('error'))
+        <div class="mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded" role="alert">
+            <div class="flex items-center">
+                <svg class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <span class="font-bold">¡Error! </span>
+                <span class="ml-1">{{ session('error') }}</span>
+            </div>
+        </div>
+    @endif
+
     <div class="md:grid md:grid-cols-3 md:gap-6">
         <div class="md:col-span-1">
             <div class="px-4 sm:px-0">
@@ -55,8 +68,9 @@
                                             <div class="w-32">
                                                 <input type="number" wire:model.live="criterios.{{ $index }}.porcentaje"
                                                        placeholder="%" min="0" max="100" step="1"
+                                                       oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                                        x-on:input="sumaPorcentajes = [...document.querySelectorAll('[wire\\:model\\.live*=porcentaje]')].reduce((sum, input) => sum + (Number(input.value) || 0), 0)"
-                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200">
+                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 @error('criterios.'.$index.'.porcentaje') border-red-500 @enderror">
                                                 @error("criterios.{$index}.porcentaje")
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
                                                 @enderror
@@ -80,13 +94,45 @@
 
                                 <div class="mt-4 flex items-center justify-between">
                                     <span class="text-sm font-medium text-gray-700">Total:</span>
-                                    <span x-text="sumaPorcentajes + '%'"
-                                          :class="{'text-red-600': sumaPorcentajes !== 100, 'text-green-600': sumaPorcentajes === 100}"
-                                          class="font-bold"></span>
+                                    <div class="flex items-center">
+                                        <span x-text="sumaPorcentajes + '%'"
+                                              :class="{'text-red-600': sumaPorcentajes !== 100, 'text-green-600': sumaPorcentajes === 100}"
+                                              class="font-bold mr-3"></span>
+
+                                        <button type="button" wire:click="ajustarPorcentajes"
+                                                x-show="sumaPorcentajes !== 100"
+                                                class="inline-flex items-center px-2 py-1 border border-transparent text-xs rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                            Ajustar a 100%
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Alerta en tiempo real del total -->
+                                <div x-show="sumaPorcentajes > 100" class="mt-2 bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded">
+                                    <div class="flex items-center">
+                                        <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span class="font-medium">Error:</span>
+                                        <span class="ml-1">La suma de los porcentajes no puede superar el 100%</span>
+                                    </div>
+                                </div>
+
+                                <div x-show="sumaPorcentajes < 100" class="mt-2 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded">
+                                    <div class="flex items-center">
+                                        <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span class="font-medium">Atención:</span>
+                                        <span class="ml-1">La suma debe ser exactamente 100% (actual: <span x-text="sumaPorcentajes + '%'"></span>)</span>
+                                    </div>
                                 </div>
 
                                 @error('criterios')
-                                    <span class="block mt-2 text-red-500 text-sm">{{ $message }}</span>
+                                    <span class="block mt-2 text-red-500 text-sm font-bold">{{ $message }}</span>
                                 @enderror
                             </div>
                         </div>

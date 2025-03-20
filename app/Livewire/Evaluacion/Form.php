@@ -32,7 +32,15 @@ class Form extends Component
         'descripcion' => 'nullable|string',
         'fecha_evaluacion' => 'nullable|date',
         'campoFormativoId' => 'required|exists:campo_formativos,id',
-        'alumnosEvaluados.*.calificaciones.*.valor' => 'required|numeric|min:1|max:100',
+        'alumnosEvaluados.*.calificaciones.*.valor' => 'required|numeric|min:0|max:100',
+    ];
+
+    // Mensajes de validación personalizados
+    protected $messages = [
+        'alumnosEvaluados.*.calificaciones.*.valor.required' => 'La calificación es obligatoria.',
+        'alumnosEvaluados.*.calificaciones.*.valor.numeric' => 'La calificación debe ser un valor numérico.',
+        'alumnosEvaluados.*.calificaciones.*.valor.min' => 'La calificación mínima es 0.',
+        'alumnosEvaluados.*.calificaciones.*.valor.max' => 'La calificación máxima es 100.',
     ];
 
     public function mount($evaluacionId = null)
@@ -104,6 +112,26 @@ class Form extends Component
     {
         if ($this->grupoId) {
             $this->alumnosSeleccionados = [];
+        }
+    }
+
+    public function updated($field)
+    {
+        // Validación en tiempo real para los campos de calificación
+        if (preg_match('/alumnosEvaluados\.\d+\.calificaciones\.\d+\.valor/', $field)) {
+            try {
+                $this->validateOnly($field);
+
+                // Extraer el índice del alumno del path del índice
+                $parts = explode('.', $field);
+                if (count($parts) >= 5 && $parts[2] == 'calificaciones' && $parts[4] == 'valor') {
+                    $alumnoIndex = (int)$parts[0];
+                    $this->calcularPromedio($alumnoIndex);
+                }
+            } catch (\Exception $e) {
+                // Capturamos la excepción para evitar que la página se rompa
+                // La validación de errores se mostrará en la vista
+            }
         }
     }
 
@@ -210,29 +238,39 @@ class Form extends Component
 
         $sumaPonderada = 0;
         $sumaPesos = 0;
-        $calificacionesCompletas = true;
 
         foreach ($this->alumnosEvaluados[$alumnoIndex]['calificaciones'] as $index => $calificacion) {
-            $criterioId = $calificacion['criterio_id'];
+            try {
+                $criterioId = $calificacion['criterio_id'];
 
-            // Buscar el criterio correspondiente
-            $criterioIndex = collect($this->criterios)->search(function($item) use ($criterioId) {
-                return $item['id'] == $criterioId;
-            });
+                // Buscar el criterio correspondiente
+                $criterioIndex = collect($this->criterios)->search(function($item) use ($criterioId) {
+                    return $item['id'] == $criterioId;
+                });
 
-            if ($criterioIndex !== false) {
-                $valor = isset($calificacion['valor']) && $calificacion['valor'] !== '' ? $calificacion['valor'] : 0;
-                if ($valor == 0) {
-                    $calificacionesCompletas = false;
+                if ($criterioIndex !== false) {
+                    // Asegurarse de que el valor sea numérico antes de calcular
+                    $valor = 0;
+                    if (isset($calificacion['valor'])) {
+                        if (is_numeric($calificacion['valor'])) {
+                            $valor = (float) $calificacion['valor'];
+                        } else {
+                            // Si no es numérico, lo establecemos a 0 y actualizamos el valor
+                            $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$index]['valor'] = 0;
+                        }
+                    }
+
+                    $porcentaje = (float) $this->criterios[$criterioIndex]['porcentaje'];
+
+                    $ponderada = $valor * ($porcentaje / 100);
+                    $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$index]['ponderada'] = $ponderada;
+
+                    $sumaPonderada += $ponderada;
+                    $sumaPesos += $porcentaje / 100;
                 }
-
-                $porcentaje = $this->criterios[$criterioIndex]['porcentaje'];
-
-                $ponderada = $valor * ($porcentaje / 100);
-                $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$index]['ponderada'] = $ponderada;
-
-                $sumaPonderada += $ponderada;
-                $sumaPesos += $porcentaje / 100;
+            } catch (\Exception $e) {
+                // Si hay cualquier error en el cálculo, lo ignoramos y continuamos
+                continue;
             }
         }
 
@@ -241,13 +279,35 @@ class Form extends Component
 
     public function updatedAlumnosEvaluados($value, $index)
     {
-        // Extraer el índice del alumno del path del índice (ejemplo: alumnosEvaluados.0.calificaciones.1.valor)
-        $parts = explode('.', $index);
+        try {
+            // Extraer el índice del alumno del path del índice
+            $parts = explode('.', $index);
 
-        if (count($parts) >= 5 && $parts[2] == 'calificaciones' && $parts[4] == 'valor') {
-            $alumnoIndex = (int)$parts[0];
-            $this->calcularPromedio($alumnoIndex);
-            $this->autosave();
+            if (count($parts) >= 5 && $parts[2] == 'calificaciones' && $parts[4] == 'valor') {
+                $alumnoIndex = (int)$parts[0];
+                $calIndex = (int)$parts[3];
+
+                // Verificar que el valor sea numérico
+                if (isset($this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'])) {
+                    $valor = $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'];
+                    if (!is_numeric($valor)) {
+                        // Si no es numérico, establecerlo a 0
+                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = 0;
+                    } else {
+                        // Asegurarnos de que esté dentro del rango permitido (0-100)
+                        $valor = (float) $valor;
+                        if ($valor < 0) $valor = 0;
+                        if ($valor > 100) $valor = 100;
+                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = $valor;
+                    }
+                }
+
+                $this->calcularPromedio($alumnoIndex);
+                $this->autosave();
+            }
+        } catch (\Exception $e) {
+            // Capturar cualquier excepción para evitar que la página se rompa
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Error al actualizar calificación: ' . $e->getMessage()]);
         }
     }
 
@@ -316,40 +376,45 @@ class Form extends Component
 
     public function finalizar()
     {
-        $this->validate([
-            'titulo' => 'required|string|max:255',
-            'campoFormativoId' => 'required|exists:campo_formativos,id',
-        ]);
+        try {
+            $this->validate([
+                'titulo' => 'required|string|max:255',
+                'campoFormativoId' => 'required|exists:campo_formativos,id',
+            ]);
 
-        // Verificar que haya al menos un alumno evaluado
-        if (empty($this->alumnosEvaluados)) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Debe agregar al menos un alumno a la evaluación']);
-            return;
-        }
+            // Verificar que haya al menos un alumno evaluado
+            if (empty($this->alumnosEvaluados)) {
+                $this->dispatch('notify', ['type' => 'error', 'message' => 'Debe agregar al menos un alumno a la evaluación']);
+                return;
+            }
 
-        // Verificar que todos los alumnos tengan calificaciones
-        foreach ($this->alumnosEvaluados as $index => $alumno) {
-            foreach ($alumno['calificaciones'] as $calificacion) {
-                if (empty($calificacion['valor'])) {
-                    $this->dispatch('notify', [
-                        'type' => 'error',
-                        'message' => "Faltan calificaciones para el alumno {$alumno['nombre']}"
-                    ]);
-                    return;
+            // Verificar que todas las calificaciones sean valores válidos
+            foreach ($this->alumnosEvaluados as $index => $alumno) {
+                foreach ($alumno['calificaciones'] as $calIndex => $calificacion) {
+                    if (!isset($calificacion['valor']) || !is_numeric($calificacion['valor'])) {
+                        $this->dispatch('notify', [
+                            'type' => 'error',
+                            'message' => "La calificación para el alumno {$alumno['nombre']} debe ser un valor numérico entre 0 y 100"
+                        ]);
+                        return;
+                    }
                 }
             }
+
+            // Guardar todo
+            $this->autosave();
+
+            // Marcar como finalizada
+            $evaluacion = Evaluacion::find($this->evaluacionId);
+            $evaluacion->is_draft = false;
+            $evaluacion->save();
+
+            return redirect()->route('evaluaciones.index')
+                ->with('success', 'Evaluación finalizada correctamente.');
+        } catch (\Exception $e) {
+            // Capturar cualquier excepción inesperada
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Error al finalizar la evaluación: ' . $e->getMessage()]);
         }
-
-        // Guardar todo
-        $this->autosave();
-
-        // Marcar como finalizada
-        $evaluacion = Evaluacion::find($this->evaluacionId);
-        $evaluacion->is_draft = false;
-        $evaluacion->save();
-
-        return redirect()->route('evaluaciones.index')
-            ->with('success', 'Evaluación finalizada correctamente.');
     }
 
     public function render()
