@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -33,23 +34,18 @@ return new class extends Migration
             if (!Schema::hasColumn('alumnos', 'observaciones')) {
                 $table->text('observaciones')->nullable()->after('alergias');
             }
+
             // Añadir el constraint CHECK para la columna 'genero' si no existe
-            $sm = Schema::getConnection()->getDoctrineSchemaManager();
-            $columns = $sm->listTableColumns('alumnos');
-            $hasGeneroCheck = false;
-            if (isset($columns['genero'])) {
-                $tableDetails = $sm->listTableDetails('alumnos');
-                foreach ($tableDetails->getChecks() as $check) {
-                    if (str_contains(strtolower($check->getExpression()), strtolower("genero") . " in ")) {
-                        $hasGeneroCheck = true;
-                        break;
-                    }
-                }
-                if (!$hasGeneroCheck) {
-                    $table->string('genero')->nullable()->change(); // Hacer la columna nullable temporalmente para añadir el constraint
-                    DB::statement('ALTER TABLE alumnos ADD CONSTRAINT alumnos_genero_check CHECK (genero IN ("masculino", "femenino", "otro"))');
-                    $table->string('genero')->nullable(false)->change(); // Volver a hacerlo not null si era antes
-                }
+            if (!Schema::hasColumn('alumnos', 'genero')) {
+                $table->string('genero')->nullable();
+            }
+
+            // Verificar si el constraint CHECK ya existe en SQLite
+            $checkExists = DB::selectOne("SELECT name FROM sqlite_master WHERE type='check' AND name='alumnos_genero_check'");
+
+            if (!$checkExists) {
+                // Añadir el constraint CHECK
+                DB::statement('ALTER TABLE alumnos ADD CONSTRAINT alumnos_genero_check CHECK (genero IN ("masculino", "femenino", "otro"))');
             }
         });
     }
@@ -71,6 +67,7 @@ return new class extends Migration
             ]);
             // No es sencillo deshacer un constraint CHECK en SQLite de forma directa
             // Podrías optar por no hacer nada en el down para este constraint
+            // o intentar una sentencia SQL para eliminarlo si es necesario y soportado.
         });
     }
 };
