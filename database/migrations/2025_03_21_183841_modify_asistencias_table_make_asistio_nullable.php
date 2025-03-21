@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\DB; // Importar la clase DB
 
 return new class extends Migration
 {
@@ -12,8 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Para SQLite, el enfoque más seguro es actualizar la tabla directamente
-        // En lugar de recrearla, vamos a añadir un valor por defecto a asistio basado en estado
+        Schema::table('asistencias', function (Blueprint $table) {
+            $table->enum('estado', ['asistio', 'falta', 'justificada'])->default('asistio');
+            $table->boolean('asistio')->nullable(); // Agregar la columna asistio
+        });
 
         // Actualizar los valores de asistio según el estado
         DB::statement("UPDATE asistencias SET asistio =
@@ -24,9 +26,6 @@ return new class extends Migration
                 ELSE 1
             END
             WHERE asistio IS NULL");
-
-        // En SQLite no podemos cambiar una columna a nullable directamente,
-        // pero podemos trabajar con valores predeterminados
     }
 
     /**
@@ -34,6 +33,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // No hay operación para deshacer
+        Schema::table('asistencias', function (Blueprint $table) {
+            $table->dropColumn('estado');
+            $table->dropColumn('asistio'); // Asegurarse de eliminar la columna en el rollback
+        });
     }
 };
