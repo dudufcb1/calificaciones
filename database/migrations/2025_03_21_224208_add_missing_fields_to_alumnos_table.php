@@ -23,7 +23,7 @@ return new class extends Migration
             Schema::rename('alumnos', 'alumnos_old');
         }
 
-        // Create the new alumnos table WITHOUT the CHECK constraint
+        // Create the new alumnos table WITH the CHECK constraint
         Schema::create('alumnos', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
@@ -47,10 +47,9 @@ return new class extends Migration
 
             $table->foreign('grupo_id')->references('id')->on('grupos')->onDelete('set null');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-        });
 
-        // Add the CHECK constraint using a raw SQL statement
-        \Illuminate\Support\Facades\DB::statement('ALTER TABLE alumnos ADD CONSTRAINT alumnos_genero_check CHECK (genero IN ("masculino", "femenino", "otro"))');
+            $table->check('genero IN ("masculino", "femenino", "otro")');
+        });
 
         // Copy data from the old table to the new table if it existed
         if (Schema::hasTable('alumnos_old')) {
