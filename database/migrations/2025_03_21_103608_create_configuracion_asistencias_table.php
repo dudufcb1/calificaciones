@@ -13,7 +13,15 @@ return new class extends Migration
     {
         Schema::create('configuracion_asistencias', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->integer('mes');
+            $table->integer('anio');
+            $table->integer('dias_habiles');
+            $table->boolean('es_periodo_vacacional')->default(false);
             $table->timestamps();
+
+            // Asegurar que no haya duplicados para el mismo mes y año por usuario
+            $table->unique(['user_id', 'mes', 'anio']);
         });
     }
 

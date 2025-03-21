@@ -23,12 +23,14 @@ class EvaluacionExport implements WithEvents, WithTitle
     protected $criterios;
     protected $templatePath;
     protected $nombreDocente;
+    protected $limitarRegistros;
 
-    public function __construct(Evaluacion $evaluacion, $templatePath = null, $nombreDocente = null)
+    public function __construct(Evaluacion $evaluacion, $templatePath = null, $nombreDocente = null, $limitarRegistros = false)
     {
         $this->evaluacion = $evaluacion;
         $this->templatePath = $templatePath ?: storage_path('app/templates/evaluacion_template.xlsx');
         $this->nombreDocente = $nombreDocente;
+        $this->limitarRegistros = $limitarRegistros;
 
         // Cargar los datos necesarios
         $this->cargarDatos();
@@ -58,7 +60,15 @@ class EvaluacionExport implements WithEvents, WithTitle
         \Log::info('Nombre de docente que se usará: ' . $this->nombreDocente);
 
         $this->detalles = [];
-        foreach ($this->evaluacion->detalles as $detalle) {
+        $detallesCollection = $this->evaluacion->detalles;
+
+        // Limitar a 10 registros si el usuario está en modo trial
+        if ($this->limitarRegistros && count($detallesCollection) > 10) {
+            $detallesCollection = $detallesCollection->take(10);
+            \Log::info('Modo Trial: Limitando exportación a 10 registros');
+        }
+
+        foreach ($detallesCollection as $detalle) {
             $calificaciones = [];
             $sumaPonderada = 0;
             $sumaPesos = 0;
@@ -117,11 +127,19 @@ class EvaluacionExport implements WithEvents, WithTitle
                 \Log::info('Asignando nombre de docente a celda B8: ' . $this->nombreDocente);
                 $sheet->setCellValue('B8', $this->nombreDocente);
 
+                // Si estamos en modo trial y se limitó la exportación, agregar una nota
+                if ($this->limitarRegistros && count($this->evaluacion->detalles) > 10) {
+                    $sheet->setCellValue('A9', 'Nota:');
+                    $sheet->setCellValue('B9', 'Exportación limitada a 10 registros (modo Trial). Actualice a la versión completa para exportar todos los registros.');
+                    $sheet->getStyle('A9:B9')->getFont()->setBold(true);
+                    $sheet->getStyle('A9:B9')->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_RED));
+                }
+
                 // Aplicar estilo específico para esta celda para asegurar visibilidad
                 $sheet->getStyle('B8')->getFont()->setBold(false)->setSize(11);
                 $sheet->getStyle('B8')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
 
-                // Dar formato a las celdas de información básica para asegurar que sean visibles
+                // Dar formato a las celdas para asegurar que sean visibles
                 $sheet->getStyle('A3:B8')->getFont()->setSize(11);
                 $sheet->getStyle('A3:A8')->getFont()->setBold(true);
 
@@ -245,6 +263,14 @@ class EvaluacionExport implements WithEvents, WithTitle
         // Usar directamente el nombre del docente que se guardó en el constructor
         \Log::info('Asignando nombre de docente a celda B8 (template): ' . $this->nombreDocente);
         $sheet->setCellValue('B8', $this->nombreDocente);
+
+        // Si estamos en modo trial y se limitó la exportación, agregar una nota
+        if ($this->limitarRegistros && count($this->evaluacion->detalles) > 10) {
+            $sheet->setCellValue('A9', 'Nota:');
+            $sheet->setCellValue('B9', 'Exportación limitada a 10 registros (modo Trial). Actualice a la versión completa para exportar todos los registros.');
+            $sheet->getStyle('A9:B9')->getFont()->setBold(true);
+            $sheet->getStyle('A9:B9')->getFont()->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_RED));
+        }
 
         // Aplicar estilo específico para esta celda para asegurar visibilidad
         $sheet->getStyle('B8')->getFont()->setBold(false)->setSize(11);

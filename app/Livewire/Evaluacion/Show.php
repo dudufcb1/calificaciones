@@ -98,9 +98,10 @@ class Show extends Component
     public function exportarExcel()
     {
         $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+        $currentUser = auth()->user();
 
         // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
-        $nombreDocente = auth()->user()->name;
+        $nombreDocente = $currentUser->name;
         if ($evaluacion->user) {
             $nombreDocente = $evaluacion->user->name;
         }
@@ -110,14 +111,27 @@ class Show extends Component
         // Verificar si existe la plantilla
         $templatePath = storage_path('app/templates/evaluacion_template.xlsx');
 
+        // Comprobar si el usuario está en modo trial
+        $limitarRegistros = false;
+        if ($currentUser->trial) {
+            $limitarRegistros = true;
+            $this->dispatch('notify', [
+                'type' => 'info',
+                'message' => 'En modo Trial solo puedes exportar hasta 10 registros.'
+            ]);
+        }
+
         if (!file_exists($templatePath)) {
             // Si no existe la plantilla, crearemos un archivo normal
-            return Excel::download(new EvaluacionExport($evaluacion, null, $nombreDocente), 'evaluacion_' . $evaluacion->id . '.xlsx');
+            return Excel::download(
+                new EvaluacionExport($evaluacion, null, $nombreDocente, $limitarRegistros),
+                'evaluacion_' . $evaluacion->id . '.xlsx'
+            );
         }
 
         try {
             // Crear el archivo usando la plantilla
-            $export = new EvaluacionExport($evaluacion, $templatePath, $nombreDocente);
+            $export = new EvaluacionExport($evaluacion, $templatePath, $nombreDocente, $limitarRegistros);
             $tempFile = $export->exportFromTemplate();
 
             // Preparar la respuesta para descargar
