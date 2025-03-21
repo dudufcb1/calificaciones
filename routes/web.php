@@ -10,6 +10,10 @@ use App\Livewire\Evaluacion\Index as EvaluacionIndex;
 use App\Livewire\Grupo\Index as GrupoIndex;
 use App\Livewire\Grupo\Form as GrupoForm;
 use App\Livewire\Usuario\Index as UsuarioIndex;
+use App\Livewire\Asistencia\Index as AsistenciaIndex;
+use App\Livewire\Asistencia\Configuracion as AsistenciaConfiguracion;
+use App\Livewire\Asistencia\PasarLista as AsistenciaPasarLista;
+use App\Livewire\Asistencia\Reporte as AsistenciaReporte;
 use App\Http\Controllers\DashboardController;
 
 Route::view('/', 'welcome');
@@ -48,6 +52,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
         Route::get('/grupos/create', GrupoForm::class)->name('grupos.create');
         Route::get('/grupos/{grupoId}/edit', GrupoForm::class)->name('grupos.edit');
+
+        // Rutas de Asistencia
+        Route::get('/asistencia', AsistenciaIndex::class)->name('asistencia.index');
+        Route::get('/asistencia/configuracion', AsistenciaConfiguracion::class)->name('asistencia.configuracion');
+        Route::get('/asistencia/pasar-lista', AsistenciaPasarLista::class)->name('asistencia.pasar-lista');
+        Route::get('/asistencia/reporte', AsistenciaReporte::class)->name('asistencia.reporte');
     });
 });
 
