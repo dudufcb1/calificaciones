@@ -12,32 +12,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('alumnos', function (Blueprint $table) {
-            if (!Schema::hasColumn('alumnos', 'tutor_nombre')) {
-                $table->string('tutor_nombre')->nullable()->after('user_id');
-            }
-            if (!Schema::hasColumn('alumnos', 'tutor_telefono')) {
-                $table->string('tutor_telefono')->nullable()->after('tutor_nombre');
-            }
-            if (!Schema::hasColumn('alumnos', 'tutor_email')) {
-                $table->string('tutor_email')->nullable()->after('tutor_telefono');
-            }
-            if (!Schema::hasColumn('alumnos', 'direccion')) {
-                $table->text('direccion')->nullable()->after('tutor_email');
-            }
-            if (!Schema::hasColumn('alumnos', 'telefono_emergencia')) {
-                $table->string('telefono_emergencia')->nullable()->after('direccion');
-            }
-            if (!Schema::hasColumn('alumnos', 'alergias')) {
-                $table->text('alergias')->nullable()->after('telefono_emergencia');
-            }
-            if (!Schema::hasColumn('alumnos', 'observaciones')) {
-                $table->text('observaciones')->nullable()->after('alergias');
-            }
-        });
-
-        // Rename the alumnos table
-        Schema::rename('alumnos', 'alumnos_old');
+        // Verifica si la tabla alumnos existe antes de intentar renombrarla
+        if (Schema::hasTable('alumnos')) {
+            // Rename the alumnos table
+            Schema::rename('alumnos', 'alumnos_old');
+        }
 
         // Create the new alumnos table with the CHECK constraint
         Schema::create('alumnos', function (Blueprint $table) {
@@ -67,19 +46,20 @@ return new class extends Migration
             $table->check('genero IN ("masculino", "femenino", "otro")');
         });
 
-        // Copy data from the old table to the new table
-        DB::statement('INSERT INTO alumnos (id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones) SELECT id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones FROM alumnos_old');
+        // Copy data from the old table to the new table if it existed
+        if (Schema::hasTable('alumnos_old')) {
+            DB::statement('INSERT INTO alumnos (id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones) SELECT id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones FROM alumnos_old');
 
-        // Drop the old table
-        Schema::drop('alumnos_old');
+            // Drop the old table if it existed
+            Schema::drop('alumnos_old');
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('alumnos');
-        Schema::rename('alumnos_old', 'alumnos');
+        if (Schema::hasTable('alumnos_old')) {
+            Schema::rename('alumnos_old', 'alumnos');
+        }
     }
 };
