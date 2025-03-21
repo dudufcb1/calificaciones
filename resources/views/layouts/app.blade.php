@@ -11,6 +11,18 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        <!-- Estilos para ocultar barras de desplazamiento -->
+        <style>
+            /* Ocultar barra de desplazamiento pero mantener funcionalidad de scroll */
+            .hide-scrollbar {
+                -ms-overflow-style: none;  /* Para Internet Explorer y Edge */
+                scrollbar-width: none;     /* Para Firefox */
+            }
+            .hide-scrollbar::-webkit-scrollbar {
+                display: none;  /* Para Chrome, Safari y Opera */
+            }
+        </style>
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
@@ -67,7 +79,7 @@
             <div
                 x-cloak
                 :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-                class="fixed inset-y-0 left-0 w-64 bg-indigo-900 text-white transition duration-200 transform z-50 lg:translate-x-0 lg:static lg:inset-0"
+                class="fixed inset-y-0 left-0 w-64 bg-indigo-900 text-white transition duration-200 transform z-50 lg:translate-x-0 lg:static lg:inset-0 flex flex-col"
             >
                 <!-- Logo -->
                 <div class="flex items-center justify-center h-16 px-4 bg-indigo-950">
@@ -95,7 +107,7 @@
                 </div>
 
                 <!-- Navigation -->
-                <nav class="px-4 mt-5">
+                <nav class="px-4 mt-5 flex-1 overflow-y-auto hide-scrollbar">
                     <h3 class="px-2 text-xs font-semibold text-indigo-300 uppercase tracking-wider">Menu</h3>
 
                     <a href="{{ route('dashboard') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('dashboard') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
@@ -153,7 +165,7 @@
                 </nav>
 
                 <!-- Logout -->
-                <div class="absolute bottom-0 w-full px-4 pb-4">
+                <div class="px-4 py-4 border-t border-indigo-800 mt-auto">
                     <livewire:layout.sidebar-logout />
                 </div>
             </div>

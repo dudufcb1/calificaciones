@@ -121,10 +121,10 @@
 
     <!-- Sección de administración (solo para administradores) -->
     @if($isAdmin)
-        <div class="mt-8">
+        <div class="mt-8 grid">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Administración del Sistema</h3>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid sm:grid-cols-1 lg:grid-cols-4 gap-6">
                 <!-- Estadísticas generales -->
                 <div class="bg-white rounded-lg shadow-sm overflow-hidden">
                     <div class="p-5 bg-purple-600">

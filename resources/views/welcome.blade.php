@@ -77,15 +77,15 @@
                         <h1 class="text-2xl font-bold text-gray-800">Sistema de Calificaciones</h1>
                     </div>
 
-                    <div class="space-x-4">
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                         @if (Route::has('login'))
                             @auth
                                 <a href="{{ url('/dashboard') }}" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">Dashboard</a>
                             @else
-                                <a href="{{ route('login') }}" class="px-4 py-2 text-sm font-medium text-indigo-600 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">Iniciar sesión</a>
+                                <a href="{{ route('login') }}" class="px-4 py-2 text-sm font-medium text-indigo-600 rounded-md border border-indigo-600 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 text-center">Iniciar sesión</a>
 
                                 @if (Route::has('register'))
-                                    <a href="{{ route('register') }}" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150">Registrarse</a>
+                                    <a href="{{ route('register') }}" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 text-center">Registrarse</a>
                                 @endif
                             @endauth
                         @endif
@@ -103,14 +103,14 @@
                             </p>
                             <div class="mt-8 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                                 @auth
-                                    <a href="{{ url('/dashboard') }}" class="px-8 py-3 text-base font-medium text-white bg-indigo-600 rounded-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5">
+                                    <a href="{{ url('/dashboard') }}" class="px-8 py-3 text-base font-medium text-white bg-indigo-600 rounded-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5 text-center">
                                         Ir al Dashboard
                                     </a>
                                 @else
-                                    <a href="{{ route('login') }}" class="px-8 py-3 text-base font-medium text-white bg-indigo-600 rounded-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5">
+                                    <a href="{{ route('login') }}" class="px-8 py-3 text-base font-medium text-white bg-indigo-600 rounded-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5 text-center">
                                         Comenzar ahora
                                     </a>
-                                    <a href="#caracteristicas" class="px-8 py-3 text-base font-medium text-indigo-600 bg-white rounded-md shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5">
+                                    <a href="#caracteristicas" class="px-8 py-3 text-base font-medium text-indigo-600 bg-white rounded-md shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 transform hover:-translate-y-0.5 text-center">
                                         Conocer más
                                     </a>
                                 @endauth

@@ -5,7 +5,9 @@ namespace App\Livewire\Evaluacion;
 use App\Models\Evaluacion;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use App\Exports\EvaluacionExport;
+use App\Exports\EvaluacionPdfExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 #[Layout('layouts.app')]
@@ -108,18 +110,37 @@ class Show extends Component
 
         \Log::info('Exportando evaluación. Docente: ' . $nombreDocente);
 
+        // Comprobar si el usuario está en modo trial
+        if ($currentUser->trial) {
+            // En lugar de exportar directamente, mostrar alerta de confirmación
+            $this->dispatch('trial-excel-export');
+            return;
+        }
+
+        // Si no está en modo trial, exportar normalmente
+        $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, false);
+    }
+
+    #[On('confirmarExportarExcel')]
+    public function confirmarExportarExcel()
+    {
+        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+        $currentUser = auth()->user();
+
+        // Obtener el nombre del docente
+        $nombreDocente = $currentUser->name;
+        if ($evaluacion->user) {
+            $nombreDocente = $evaluacion->user->name;
+        }
+
+        // Exportar con límite de registros (usuario confirmó a través del SweetAlert)
+        $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, true);
+    }
+
+    private function ejecutarExportacionExcel($evaluacion, $nombreDocente, $limitarRegistros)
+    {
         // Verificar si existe la plantilla
         $templatePath = storage_path('app/templates/evaluacion_template.xlsx');
-
-        // Comprobar si el usuario está en modo trial
-        $limitarRegistros = false;
-        if ($currentUser->trial) {
-            $limitarRegistros = true;
-            $this->dispatch('notify', [
-                'type' => 'info',
-                'message' => 'En modo Trial solo puedes exportar hasta 10 registros.'
-            ]);
-        }
 
         if (!file_exists($templatePath)) {
             // Si no existe la plantilla, crearemos un archivo normal
@@ -140,6 +161,42 @@ class Show extends Component
             $this->dispatch('notify', [
                 'type' => 'error',
                 'message' => 'Error al exportar: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    public function exportarPdf()
+    {
+        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+        $currentUser = auth()->user();
+
+        // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
+        $nombreDocente = $currentUser->name;
+        if ($evaluacion->user) {
+            $nombreDocente = $evaluacion->user->name;
+        }
+
+        \Log::info('Exportando evaluación a PDF. Docente: ' . $nombreDocente);
+
+        // Comprobar si el usuario está en modo trial
+        if ($currentUser->trial) {
+            $this->dispatch('trial-feature-disabled');
+            return;
+        }
+
+        try {
+            // Crear la exportación
+            $export = new EvaluacionPdfExport($evaluacion, $nombreDocente);
+            $pdf = $export->export();
+
+            return response()->streamDownload(
+                fn () => print($pdf->output()),
+                'evaluacion_' . $evaluacion->id . '.pdf'
+            );
+        } catch (\Exception $e) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al exportar a PDF: ' . $e->getMessage()
             ]);
         }
     }
