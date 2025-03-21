@@ -40,12 +40,12 @@ return new class extends Migration
                 $table->string('genero')->nullable();
             }
 
-            // Verificar si el constraint CHECK ya existe en SQLite
-            $checkExists = DB::selectOne("SELECT name FROM sqlite_master WHERE type='check' AND name='alumnos_genero_check'");
+            // Verificar si el constraint CHECK ya existe en SQLite (buscando la definición)
+            $checkExists = DB::selectOne("SELECT sql FROM sqlite_master WHERE type='check' AND sql LIKE '%(genero IN (''masculino'', ''femenino'', ''otro''))%'");
 
             if (!$checkExists) {
-                // Añadir el constraint CHECK
-                DB::statement('ALTER TABLE alumnos ADD CONSTRAINT alumnos_genero_check CHECK (genero IN ("masculino", "femenino", "otro"))');
+                // Añadir el constraint CHECK (sin nombrar el constraint)
+                DB::statement('ALTER TABLE alumnos ADD CHECK (genero IN ("masculino", "femenino", "otro"))');
             }
         });
     }
@@ -65,9 +65,9 @@ return new class extends Migration
                 'alergias',
                 'observaciones',
             ]);
-            // No es sencillo deshacer un constraint CHECK en SQLite de forma directa
+            // La eliminación de constraints CHECK en SQLite puede ser compleja.
             // Podrías optar por no hacer nada en el down para este constraint
-            // o intentar una sentencia SQL para eliminarlo si es necesario y soportado.
+            // o considerar una estrategia más avanzada si realmente necesitas revertirlo.
         });
     }
 };
