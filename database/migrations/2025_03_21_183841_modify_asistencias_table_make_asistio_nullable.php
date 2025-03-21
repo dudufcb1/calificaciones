@@ -13,19 +13,24 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('asistencias', function (Blueprint $table) {
-            $table->enum('estado', ['asistio', 'falta', 'justificada'])->default('asistio');
+            // Check if the 'estado' column already exists before adding it.
+            if (!Schema::hasColumn('asistencias', 'estado')) {
+                $table->enum('estado', ['asistio', 'falta', 'justificada'])->default('asistio');
+            }
             $table->boolean('asistio')->nullable(); // Agregar la columna asistio
         });
 
         // Actualizar los valores de asistio según el estado
-        DB::statement("UPDATE asistencias SET asistio =
-            CASE
-                WHEN estado = 'asistio' THEN 1
-                WHEN estado = 'falta' THEN 0
-                WHEN estado = 'justificada' THEN 0
-                ELSE 1
-            END
-            WHERE asistio IS NULL");
+        if (Schema::hasColumn('asistencias', 'asistio')) {
+            DB::statement("UPDATE asistencias SET asistio =
+                CASE
+                    WHEN estado = 'asistio' THEN 1
+                    WHEN estado = 'falta' THEN 0
+                    WHEN estado = 'justificada' THEN 0
+                    ELSE 1
+                END
+                WHERE asistio IS NULL");
+        }
     }
 
     /**
