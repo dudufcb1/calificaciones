@@ -23,33 +23,33 @@ return new class extends Migration
             Schema::rename('alumnos', 'alumnos_old');
         }
 
-        // Create the new alumnos table WITH the CHECK constraint
-        Schema::create('alumnos', function (Blueprint $table) {
-            $table->id();
-            $table->string('nombre');
-            $table->string('apellido_paterno');
-            $table->string('apellido_materno');
-            $table->foreignId('grupo_id')->nullable()->constrained('grupos')->nullOnDelete();
-            $table->string('curp')->nullable()->unique('alumnos_curp_unique');
-            $table->date('fecha_nacimiento')->nullable();
-            $table->string('genero')->nullable();
-            $table->string('estado')->default('activo');
-            $table->timestamps();
-            $table->softDeletes();
-            $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade')->after('id');
-            $table->string('tutor_nombre')->nullable()->after('user_id');
-            $table->string('tutor_telefono')->nullable()->after('tutor_nombre');
-            $table->string('tutor_email')->nullable()->after('tutor_telefono');
-            $table->text('direccion')->nullable()->after('tutor_email');
-            $table->string('telefono_emergencia')->nullable()->after('direccion');
-            $table->text('alergias')->nullable()->after('telefono_emergencia');
-            $table->text('observaciones')->nullable()->after('alergias');
-
-            $table->foreign('grupo_id')->references('id')->on('grupos')->onDelete('set null');
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-
-            $table->check('genero IN ("masculino", "femenino", "otro")');
-        });
+        // Create the new alumnos table WITH the CHECK constraint using raw SQL
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE alumnos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre VARCHAR(255) NOT NULL,
+                apellido_paterno VARCHAR(255) NOT NULL,
+                apellido_materno VARCHAR(255) NOT NULL,
+                grupo_id INTEGER NULL,
+                curp VARCHAR(255) NULL UNIQUE,
+                fecha_nacimiento DATE NULL,
+                genero VARCHAR(255) NULL CHECK (genero IN ('masculino', 'femenino', 'otro')),
+                estado VARCHAR(255) DEFAULT 'activo',
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL,
+                deleted_at DATETIME NULL,
+                user_id INTEGER NULL,
+                tutor_nombre VARCHAR(255) NULL,
+                tutor_telefono VARCHAR(255) NULL,
+                tutor_email VARCHAR(255) NULL,
+                direccion TEXT NULL,
+                telefono_emergencia VARCHAR(255) NULL,
+                alergias TEXT NULL,
+                observaciones TEXT NULL,
+                FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE SET NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ");
 
         // Copy data from the old table to the new table if it existed
         if (Schema::hasTable('alumnos_old')) {
