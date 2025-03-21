@@ -64,52 +64,9 @@ class Form extends Component
 
     public function updated($field)
     {
-        // Validación en tiempo real para los campos de porcentaje
-        if (strpos($field, 'criterios.') !== false && strpos($field, '.porcentaje') !== false) {
-            try {
-                $this->validateOnly($field);
-
-                // Asegurarnos de que sea numérico después de la validación
-                $parts = explode('.', $field);
-                if (count($parts) === 3 && $parts[0] === 'criterios' && $parts[2] === 'porcentaje') {
-                    $index = $parts[1];
-                    // Si no es numérico, lo convertimos a 0
-                    if (!is_numeric($this->criterios[$index]['porcentaje'])) {
-                        $this->criterios[$index]['porcentaje'] = 0;
-                    }
-                }
-
-                // Comprobar la suma de porcentajes en tiempo real
-                $this->verificarSumaPorcentajes();
-            } catch (\Exception $e) {
-                // Capturamos la excepción para evitar que la página se rompa
-                // La validación de errores se mostrará en la vista
-            }
-        }
-    }
-
-    /**
-     * Verifica la suma de porcentajes y muestra un error si no es correcta
-     */
-    protected function verificarSumaPorcentajes()
-    {
-        // Verificar que todos los criterios tengan porcentajes numéricos
-        $sumaPorcentajes = 0;
-        foreach ($this->criterios as $criterio) {
-            if (isset($criterio['porcentaje']) && is_numeric($criterio['porcentaje'])) {
-                $sumaPorcentajes += (float) $criterio['porcentaje'];
-            }
-        }
-
-        // Limpiar el error anterior si existe
-        $this->resetErrorBag('criterios');
-
-        // Mostrar mensaje según la suma
-        if ($sumaPorcentajes > 100) {
-            $this->addError('criterios', 'La suma actual es ' . $sumaPorcentajes . '%. Debe ser exactamente 100%.');
-        } else if ($sumaPorcentajes < 100) {
-            $this->addError('criterios', 'La suma actual es ' . $sumaPorcentajes . '%. Debe ser exactamente 100%.');
-        }
+        // Se ha desactivado la validación en tiempo real para los campos de porcentaje
+        // para evitar llamadas constantes al servidor. La validación se realizará solo al enviar el formulario.
+        // Se mantiene la funcionalidad de verificación de suma de porcentajes en el frontend con Alpine.js
     }
 
     public function save()
@@ -130,21 +87,10 @@ class Form extends Component
             // Ahora validamos con las reglas definidas
             $this->validate();
 
-            // Validar que la suma de porcentajes no supere el 100%
-            $sumaPorcentajes = 0;
-            foreach ($this->criterios as $criterio) {
-                $sumaPorcentajes += (float) $criterio['porcentaje'];
-            }
-
-            if ($sumaPorcentajes > 100) {
-                $this->addError('criterios', 'ERROR: La suma de los porcentajes es ' . $sumaPorcentajes . '%. No puede superar el 100%. Por favor, ajuste los valores.');
-                // Además agregamos un mensaje de sesión para que sea más visible
-                session()->flash('error', 'La suma de los porcentajes (' . $sumaPorcentajes . '%) no puede superar el 100%. Ajuste los valores antes de guardar.');
-                return;
-            } else if ($sumaPorcentajes < 100) {
-                $this->addError('criterios', 'ERROR: La suma de los porcentajes es ' . $sumaPorcentajes . '%. Debe ser exactamente 100%. Por favor, ajuste los valores.');
-                // Además agregamos un mensaje de sesión para que sea más visible
-                session()->flash('error', 'La suma de los porcentajes (' . $sumaPorcentajes . '%) debe ser exactamente 100%. Ajuste los valores antes de guardar.');
+            // Verificar la suma de porcentajes
+            if (!$this->verificarSumaPorcentajes()) {
+                // Si la verificación falla, mostramos un mensaje de error adicional
+                session()->flash('error', 'La suma de los porcentajes debe ser exactamente 100%. Ajuste los valores antes de guardar.');
                 return;
             }
 
@@ -252,6 +198,34 @@ class Form extends Component
         }
 
         session()->flash('message', 'Se han ajustado los porcentajes para que sumen exactamente 100%');
+    }
+
+    /**
+     * Verifica la suma de porcentajes y muestra un error si no es correcta
+     */
+    protected function verificarSumaPorcentajes()
+    {
+        // Verificar que todos los criterios tengan porcentajes numéricos
+        $sumaPorcentajes = 0;
+        foreach ($this->criterios as $criterio) {
+            if (isset($criterio['porcentaje']) && is_numeric($criterio['porcentaje'])) {
+                $sumaPorcentajes += (float) $criterio['porcentaje'];
+            }
+        }
+
+        // Limpiar el error anterior si existe
+        $this->resetErrorBag('criterios');
+
+        // Mostrar mensaje según la suma
+        if ($sumaPorcentajes > 100) {
+            $this->addError('criterios', 'La suma actual es ' . $sumaPorcentajes . '%. Debe ser exactamente 100%.');
+            return false;
+        } else if ($sumaPorcentajes < 100) {
+            $this->addError('criterios', 'La suma actual es ' . $sumaPorcentajes . '%. Debe ser exactamente 100%.');
+            return false;
+        }
+
+        return true;
     }
 
     public function render()

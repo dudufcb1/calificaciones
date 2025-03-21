@@ -24,7 +24,7 @@ class Show extends Component
 
     public function loadEvaluacion()
     {
-        $this->evaluacion = Evaluacion::with(['campoFormativo', 'detalles.alumno', 'detalles.criterios'])
+        $this->evaluacion = Evaluacion::with(['campoFormativo', 'detalles.alumno', 'detalles.criterios', 'user'])
             ->findOrFail($this->evaluacionId);
 
         $this->criterios = $this->evaluacion->campoFormativo->criterios()->orderBy('orden')->get()->toArray();
@@ -97,19 +97,27 @@ class Show extends Component
 
     public function exportarExcel()
     {
-        $evaluacion = Evaluacion::findOrFail($this->evaluacionId);
+        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+
+        // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
+        $nombreDocente = auth()->user()->name;
+        if ($evaluacion->user) {
+            $nombreDocente = $evaluacion->user->name;
+        }
+
+        \Log::info('Exportando evaluación. Docente: ' . $nombreDocente);
 
         // Verificar si existe la plantilla
         $templatePath = storage_path('app/templates/evaluacion_template.xlsx');
 
         if (!file_exists($templatePath)) {
             // Si no existe la plantilla, crearemos un archivo normal
-            return Excel::download(new EvaluacionExport($evaluacion), 'evaluacion_' . $evaluacion->id . '.xlsx');
+            return Excel::download(new EvaluacionExport($evaluacion, null, $nombreDocente), 'evaluacion_' . $evaluacion->id . '.xlsx');
         }
 
         try {
             // Crear el archivo usando la plantilla
-            $export = new EvaluacionExport($evaluacion, $templatePath);
+            $export = new EvaluacionExport($evaluacion, $templatePath, $nombreDocente);
             $tempFile = $export->exportFromTemplate();
 
             // Preparar la respuesta para descargar

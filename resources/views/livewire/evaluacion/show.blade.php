@@ -37,6 +37,11 @@
                             <p class="mt-1 text-sm text-gray-900">{{ $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'No definida' }}</p>
                         </div>
 
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Momento</p>
+                            <p class="mt-1 text-sm text-gray-900">{{ $evaluacion->momento ? $evaluacion->momento->value : 'No definido' }}</p>
+                        </div>
+
                         <div class="col-span-2">
                             <p class="text-sm font-medium text-gray-500">Descripción</p>
                             <p class="mt-1 text-sm text-gray-900">{{ $evaluacion->descripcion ?: 'Sin descripción' }}</p>

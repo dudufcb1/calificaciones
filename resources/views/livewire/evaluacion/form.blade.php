@@ -34,6 +34,16 @@
                         </div>
 
                         <div>
+                            <label for="momento" class="block text-sm font-medium text-gray-700">Momento de Evaluación</label>
+                            <select wire:model="momento" id="momento"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                @foreach(\App\Enums\MomentoEvaluacion::cases() as $momentoCase)
+                                    <option value="{{ $momentoCase->value }}">{{ $momentoCase->value }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div>
                             <label for="campoFormativoId" class="block text-sm font-medium text-gray-700">Campo Formativo</label>
                             <select wire:model.live="campoFormativoId" id="campoFormativoId"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -174,14 +184,19 @@
 
                         <!-- Lista de alumnos a evaluar -->
                         @if(count($alumnosEvaluados) > 0)
-                            <div class="mb-4 flex justify-end">
-                                <button type="button" wire:click="recalcularTodos"
-                                    class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <svg class="h-5 w-5 mr-2 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    Recalcular promedios
-                                </button>
+                            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                                <div class="flex">
+                                    <div class="flex-shrink-0">
+                                        <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-blue-700">
+                                            <strong>Tip:</strong> Si ingresa un valor decimal como 6.7, se convertirá automáticamente a 67. La validación completa se realizará al finalizar la evaluación.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200">
@@ -205,15 +220,82 @@
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
                                         @foreach($alumnosEvaluados as $index => $alumno)
-                                            <tr>
+                                            <tr x-data="{
+                                                calificaciones: @js(collect($alumno['calificaciones'])->pluck('valor')->toArray()),
+                                                criterios: @js(collect($criterios)->pluck('porcentaje')->toArray()),
+                                                calcularPromedio() {
+                                                    let sumaPonderada = 0;
+                                                    let sumaPesos = 0;
+
+                                                    for (let i = 0; i < this.calificaciones.length; i++) {
+                                                        let valor = Number(this.calificaciones[i] || 0);
+                                                        let porcentaje = Number(this.criterios[i] || 0);
+
+                                                        let ponderada = (valor * porcentaje) / 100;
+                                                        sumaPonderada += ponderada;
+                                                        sumaPesos += porcentaje;
+                                                    }
+
+                                                    return sumaPesos > 0 ? (sumaPonderada).toFixed(2) : '0.00';
+                                                },
+                                                limpiarFila() {
+                                                    // Limpiar todas las calificaciones
+                                                    this.calificaciones = this.calificaciones.map(() => '');
+
+                                                    // Actualizar los inputs en el DOM
+                                                    setTimeout(() => {
+                                                        const inputs = this.$el.querySelectorAll('input[type=text]');
+                                                        inputs.forEach((input, i) => {
+                                                            input.value = '';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                        });
+                                                    }, 10);
+                                                }
+                                            }"
+                                            x-init="$watch('calificaciones', () => {
+                                                $el.querySelector('.promedio-display').textContent = calcularPromedio();
+                                            })">
                                                 <td class="px-2 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                     {{ $alumno['nombre'] }}
                                                 </td>
                                                 @foreach($alumno['calificaciones'] as $calIndex => $calificacion)
                                                     <td class="px-2 py-4 whitespace-nowrap text-sm">
-                                                        <input type="number" step="1" min="0" max="100"
-                                                            wire:model.live="alumnosEvaluados.{{ $index }}.calificaciones.{{ $calIndex }}.valor"
-                                                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                                        <input type="text"
+                                                            wire:model="alumnosEvaluados.{{ $index }}.calificaciones.{{ $calIndex }}.valor"
+                                                            x-model="calificaciones[{{ $calIndex }}]"
+                                                            x-on:input="
+                                                                let value = $el.value.trim();
+                                                                // Reemplazar cualquier caracter que no sea número o punto
+                                                                value = value.replace(/[^0-9.]/g, '');
+
+                                                                // Si hay un punto decimal, multiplicar por 10
+                                                                if (value.includes('.')) {
+                                                                    let parts = value.split('.');
+                                                                    // Si hay más de un punto, solo considerar el primero
+                                                                    if (parts.length > 1) {
+                                                                        // Si el decimal es de una cifra (ej: 6.7), multiplicar por 10
+                                                                        if (parts[1].length === 1) {
+                                                                            value = parseInt(parts[0] + parts[1]);
+                                                                        } else if (parts[1].length > 1) {
+                                                                            // Si hay más de un decimal, tomar solo dos (ej: 6.75 -> 68)
+                                                                            value = Math.round(parseFloat(parts[0] + '.' + parts[1]) * 10);
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                // Asegurar que sea un número
+                                                                value = isNaN(value) ? 0 : value;
+
+                                                                // Limitar entre 0 y 100
+                                                                value = Math.max(0, Math.min(100, value));
+
+                                                                // Actualizar el valor
+                                                                $el.value = value;
+                                                                calificaciones[{{ $calIndex }}] = value;
+
+                                                                // Disparar el evento de cambio para que Livewire actualice el modelo
+                                                                $dispatch('input', value);
+                                                            "
                                                             class="block w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 @error("alumnosEvaluados.{$index}.calificaciones.{$calIndex}.valor") border-red-500 @enderror">
                                                         @error("alumnosEvaluados.{$index}.calificaciones.{$calIndex}.valor")
                                                             <span class="text-red-500 text-xs">{{ $message }}</span>
@@ -221,15 +303,26 @@
                                                     </td>
                                                 @endforeach
                                                 <td class="px-2 py-4 whitespace-nowrap text-sm font-medium">
-                                                    {{ number_format($alumno['promedio'], 2) }}
+                                                    <span class="promedio-display" x-text="calcularPromedio()">{{ number_format($alumno['promedio'], 2) }}</span>
                                                 </td>
                                                 <td class="px-2 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    <button type="button" wire:click="eliminarAlumno({{ $index }})"
-                                                        class="text-red-600 hover:text-red-900">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                                        </svg>
-                                                    </button>
+                                                    <div class="flex space-x-2">
+                                                        <button type="button"
+                                                            x-on:click="limpiarFila()"
+                                                            wire:click="limpiarCalificaciones({{ $index }})"
+                                                            class="text-gray-600 hover:text-gray-900"
+                                                            title="Borrar calificaciones">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button type="button" wire:click="eliminarAlumno({{ $index }})"
+                                                            class="text-red-600 hover:text-red-900" title="Eliminar alumno">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -260,7 +353,7 @@
                             class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Cancelar
                         </a>
-                        <button type="submit"
+                        <button type="button" wire:click="finalizar"
                             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Finalizar Evaluación
                         </button>

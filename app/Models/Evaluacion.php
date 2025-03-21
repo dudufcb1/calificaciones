@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\MomentoEvaluacion;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -22,11 +24,13 @@ class Evaluacion extends Model
         'campo_formativo_id',
         'is_draft',
         'user_id',
+        'momento',
     ];
 
     protected $casts = [
         'fecha_evaluacion' => 'date',
         'is_draft' => 'boolean',
+        'momento' => MomentoEvaluacion::class,
     ];
 
     protected static function booted()
@@ -44,7 +48,7 @@ class Evaluacion extends Model
         });
     }
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

@@ -17,6 +17,16 @@ class Alumno extends Model
         'grupo_id',
         'estado',
         'user_id',
+        'curp',
+        'fecha_nacimiento',
+        'genero',
+        'tutor_nombre',
+        'tutor_telefono',
+        'tutor_email',
+        'direccion',
+        'telefono_emergencia',
+        'alergias',
+        'observaciones',
     ];
 
     protected $casts = [

@@ -52,7 +52,8 @@
                             </div>
 
                             <div x-data="{ sumaPorcentajes: 0 }"
-                                 x-init="sumaPorcentajes = @js(collect($criterios)->sum('porcentaje'))">
+                                 x-init="sumaPorcentajes = recalcularPorcentajes();
+                                        $watch('sumaPorcentajes', value => console.log('Suma actualizada:', value))">
                                 <div class="space-y-4">
                                     @foreach($criterios as $index => $criterio)
                                         <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
@@ -66,10 +67,16 @@
                                             </div>
 
                                             <div class="w-32">
-                                                <input type="number" wire:model.live="criterios.{{ $index }}.porcentaje"
-                                                       placeholder="%" min="0" max="100" step="1"
-                                                       oninput="this.value = this.value.replace(/[^0-9]/g, '')"
-                                                       x-on:input="sumaPorcentajes = [...document.querySelectorAll('[wire\\:model\\.live*=porcentaje]')].reduce((sum, input) => sum + (Number(input.value) || 0), 0)"
+                                                <input type="text"
+                                                       wire:model="criterios.{{ $index }}.porcentaje"
+                                                       placeholder="%"
+                                                       x-data="{}"
+                                                       x-on:input="
+                                                           $el.value = $el.value.replace(/[^0-9]/g, '');
+                                                           if ($el.value > 100) $el.value = 100;
+                                                           if ($el.value < 0) $el.value = 0;
+                                                           sumaPorcentajes = recalcularPorcentajes()
+                                                       "
                                                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 @error('criterios.'.$index.'.porcentaje') border-red-500 @enderror">
                                                 @error("criterios.{$index}.porcentaje")
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
@@ -152,6 +159,17 @@
             </form>
         </div>
     </div>
+
+    <!-- Script para inicializar Alpine.js y mantener la suma actualizada -->
+    <script>
+    document.addEventListener('alpine:init', () => {
+        // Función global para recalcular la suma de porcentajes
+        window.recalcularPorcentajes = function() {
+            const inputs = document.querySelectorAll('[wire\\:model*=porcentaje]');
+            return [...inputs].reduce((sum, input) => sum + (Number(input.value) || 0), 0);
+        }
+    });
+    </script>
 
     @if (session()->has('message'))
         <div x-data="{ show: true }"

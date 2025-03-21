@@ -22,11 +22,13 @@ class EvaluacionExport implements WithEvents, WithTitle
     protected $detalles;
     protected $criterios;
     protected $templatePath;
+    protected $nombreDocente;
 
-    public function __construct(Evaluacion $evaluacion, $templatePath = null)
+    public function __construct(Evaluacion $evaluacion, $templatePath = null, $nombreDocente = null)
     {
         $this->evaluacion = $evaluacion;
         $this->templatePath = $templatePath ?: storage_path('app/templates/evaluacion_template.xlsx');
+        $this->nombreDocente = $nombreDocente;
 
         // Cargar los datos necesarios
         $this->cargarDatos();
@@ -34,8 +36,26 @@ class EvaluacionExport implements WithEvents, WithTitle
 
     protected function cargarDatos()
     {
-        $this->evaluacion->load(['campoFormativo', 'detalles.alumno', 'detalles.criterios']);
+        // Cargar explícitamente la relación user para asegurar que tenemos los datos del docente
+        $this->evaluacion->load(['campoFormativo', 'detalles.alumno', 'detalles.criterios', 'user']);
         $this->criterios = $this->evaluacion->campoFormativo->criterios()->orderBy('orden')->get();
+
+        // Debugging: asegurar que el usuario está siendo cargado correctamente
+        $nombreUsuario = $this->evaluacion->user ? $this->evaluacion->user->name : 'No encontrado';
+        \Log::info('Usuario cargado para evaluación ' . $this->evaluacion->id . ': ' . $nombreUsuario);
+
+        // Si no tenemos usuario en la relación pero tenemos un nombre de docente pasado por parámetro, usarlo
+        if (!$this->nombreDocente) {
+            if ($this->evaluacion->user) {
+                $this->nombreDocente = $this->evaluacion->user->name;
+            } elseif (auth()->check()) {
+                $this->nombreDocente = auth()->user()->name;
+            } else {
+                $this->nombreDocente = 'No asignado';
+            }
+        }
+
+        \Log::info('Nombre de docente que se usará: ' . $this->nombreDocente);
 
         $this->detalles = [];
         foreach ($this->evaluacion->detalles as $detalle) {
@@ -90,10 +110,40 @@ class EvaluacionExport implements WithEvents, WithTitle
                 $sheet->setCellValue('B3', $this->evaluacion->titulo);
                 $sheet->setCellValue('B4', $this->evaluacion->campoFormativo->nombre);
                 $sheet->setCellValue('B5', $this->evaluacion->fecha_evaluacion ? $this->evaluacion->fecha_evaluacion->format('d/m/Y') : 'No definida');
-                $sheet->setCellValue('B6', $this->evaluacion->descripcion ?: 'Sin descripción');
+                $sheet->setCellValue('B6', $this->evaluacion->momento ? $this->evaluacion->momento->value : 'No definido');
+                $sheet->setCellValue('B7', $this->evaluacion->descripcion ?: 'Sin descripción');
+
+                // Usar directamente el nombre del docente que se guardó en el constructor
+                \Log::info('Asignando nombre de docente a celda B8: ' . $this->nombreDocente);
+                $sheet->setCellValue('B8', $this->nombreDocente);
+
+                // Aplicar estilo específico para esta celda para asegurar visibilidad
+                $sheet->getStyle('B8')->getFont()->setBold(false)->setSize(11);
+                $sheet->getStyle('B8')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+
+                // Dar formato a las celdas de información básica para asegurar que sean visibles
+                $sheet->getStyle('A3:B8')->getFont()->setSize(11);
+                $sheet->getStyle('A3:A8')->getFont()->setBold(true);
+
+                // Actualizar los encabezados de las celdas
+                $sheet->setCellValue('A3', 'Título:');
+                $sheet->setCellValue('A4', 'Campo Formativo:');
+                $sheet->setCellValue('A5', 'Fecha:');
+                $sheet->setCellValue('A6', 'Momento:');
+                $sheet->setCellValue('A7', 'Descripción:');
+                $sheet->setCellValue('A8', 'Docente:');
+
+                // Ajustar el ancho de la columna B para dar espacio al nombre del docente
+                $sheet->getColumnDimension('B')->setAutoSize(true);
+
+                // Definir el inicio de la sección de criterios
+                $startRow = 10; // Ajustamos la fila de inicio para criterios
+
+                // Añadir el título de la sección de criterios
+                $sheet->setCellValue('A' . ($startRow - 1), 'CRITERIOS DE EVALUACIÓN');
+                $sheet->getStyle('A' . ($startRow - 1))->getFont()->setBold(true);
 
                 // Añadir los criterios de evaluación
-                $startRow = 9;
                 foreach ($this->criterios as $index => $criterio) {
                     $row = $startRow + $index;
                     $sheet->setCellValue('A' . $row, $criterio->nombre);
@@ -102,24 +152,29 @@ class EvaluacionExport implements WithEvents, WithTitle
                 }
 
                 // Añadir los alumnos y sus calificaciones
-                $startRow = 15;
+                $alumnosStartRow = $startRow + count($this->criterios) + 2; // 2 filas adicionales para separación
+
+                // Añadir el título de la sección de alumnos
+                $sheet->setCellValue('A' . ($alumnosStartRow - 1), 'ALUMNOS EVALUADOS');
+                $sheet->getStyle('A' . ($alumnosStartRow - 1))->getFont()->setBold(true);
+
                 $startCol = 'A';
 
                 // Encabezados de columnas para los criterios
                 $colIndex = 1; // B
                 foreach ($this->criterios as $criterio) {
                     $colLetter = chr(ord($startCol) + $colIndex);
-                    $sheet->setCellValue($colLetter . $startRow, $criterio->nombre);
+                    $sheet->setCellValue($colLetter . $alumnosStartRow, $criterio->nombre);
                     $colIndex++;
                 }
 
                 // Columna para promedio
                 $promedioCol = chr(ord($startCol) + $colIndex);
-                $sheet->setCellValue($promedioCol . $startRow, 'Promedio');
+                $sheet->setCellValue($promedioCol . $alumnosStartRow, 'Promedio');
 
                 // Datos de los alumnos
                 foreach ($this->detalles as $index => $detalle) {
-                    $row = $startRow + $index + 1;
+                    $row = $alumnosStartRow + $index + 1;
                     $sheet->setCellValue($startCol . $row, $detalle['nombre']);
 
                     // Calificaciones por criterio
@@ -136,7 +191,7 @@ class EvaluacionExport implements WithEvents, WithTitle
                 }
 
                 // Ajustar estilos y formato (opcional)
-                $lastRow = $startRow + count($this->detalles) + 1;
+                $lastRow = $alumnosStartRow + count($this->detalles) + 1;
                 $lastCol = $promedioCol;
 
                 // Autoajustar columnas
@@ -184,27 +239,61 @@ class EvaluacionExport implements WithEvents, WithTitle
         $sheet->setCellValue('B3', $this->evaluacion->titulo);
         $sheet->setCellValue('B4', $this->evaluacion->campoFormativo->nombre);
         $sheet->setCellValue('B5', $this->evaluacion->fecha_evaluacion ? $this->evaluacion->fecha_evaluacion->format('d/m/Y') : 'No definida');
-        $sheet->setCellValue('B6', $this->evaluacion->descripcion ?: 'Sin descripción');
+        $sheet->setCellValue('B6', $this->evaluacion->momento ? $this->evaluacion->momento->value : 'No definido');
+        $sheet->setCellValue('B7', $this->evaluacion->descripcion ?: 'Sin descripción');
+
+        // Usar directamente el nombre del docente que se guardó en el constructor
+        \Log::info('Asignando nombre de docente a celda B8 (template): ' . $this->nombreDocente);
+        $sheet->setCellValue('B8', $this->nombreDocente);
+
+        // Aplicar estilo específico para esta celda para asegurar visibilidad
+        $sheet->getStyle('B8')->getFont()->setBold(false)->setSize(11);
+        $sheet->getStyle('B8')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+
+        // Dar formato a las celdas para asegurar que sean visibles
+        $sheet->getStyle('A3:B8')->getFont()->setSize(11);
+        $sheet->getStyle('A3:A8')->getFont()->setBold(true);
+
+        // Ajustar el ancho de la columna B para dar espacio al nombre del docente
+        $sheet->getColumnDimension('B')->setAutoSize(true);
+
+        // Actualizar también los encabezados de las celdas
+        $sheet->setCellValue('A3', 'Título:');
+        $sheet->setCellValue('A4', 'Campo Formativo:');
+        $sheet->setCellValue('A5', 'Fecha:');
+        $sheet->setCellValue('A6', 'Momento:');
+        $sheet->setCellValue('A7', 'Descripción:');
+        $sheet->setCellValue('A8', 'Docente:');
 
         // Ubicaciones de las tablas en la plantilla
-        $criteriosStartRow = 9; // Fila donde inicia la tabla de criterios
-        $alumnosStartRow = 15;  // Fila donde inicia la tabla de alumnos
+        $criteriosStartRow = 10; // Ajustamos la fila de inicio para criterios
+
+        // Añadir el título de la sección de criterios
+        $sheet->setCellValue('A' . ($criteriosStartRow - 1), 'CRITERIOS DE EVALUACIÓN');
+        $sheet->getStyle('A' . ($criteriosStartRow - 1))->getFont()->setBold(true);
 
         // Rellenar criterios (dinámicamente)
         foreach ($this->criterios as $index => $criterio) {
-            $row = $criteriosStartRow + $index + 1; // +1 porque la fila 9 es el encabezado
+            $row = $criteriosStartRow + $index; // No necesitamos +1 aquí porque ya tenemos el inicio correcto
             $sheet->setCellValue('A' . $row, $criterio->nombre);
             $sheet->setCellValue('B' . $row, $criterio->descripcion);
             $sheet->setCellValue('C' . $row, $criterio->porcentaje . '%');
         }
 
         // Limpiar filas de criterios no utilizadas (hasta 5 criterios por defecto en plantilla)
-        for ($i = count($this->criterios) + 1; $i <= 5; $i++) {
+        for ($i = count($this->criterios); $i < 5; $i++) {
             $row = $criteriosStartRow + $i;
             $sheet->setCellValue('A' . $row, '');
             $sheet->setCellValue('B' . $row, '');
             $sheet->setCellValue('C' . $row, '');
         }
+
+        // Calcular la fila de inicio para alumnos basada en la cantidad de criterios
+        $alumnosStartRow = $criteriosStartRow + max(count($this->criterios), 5) + 2; // 2 filas de espacio
+
+        // Añadir el título de la sección de alumnos
+        $sheet->setCellValue('A' . ($alumnosStartRow - 1), 'ALUMNOS EVALUADOS');
+        $sheet->getStyle('A' . ($alumnosStartRow - 1))->getFont()->setBold(true);
 
         // Rellenar encabezados de calificaciones con los nombres de los criterios
         $startCol = 'B';
@@ -248,7 +337,7 @@ class EvaluacionExport implements WithEvents, WithTitle
             $sheet->setCellValue('A' . $row, '');
 
             // Limpiar calificaciones y promedio
-            for ($j = 0; $j <= 5; $j++) { // Suponiendo máximo 5 criterios + promedio
+            for ($j = 0; $j <= count($this->criterios); $j++) { // Criterios + promedio
                 $colLetter = chr(ord($startCol) + $j - 1);
                 if ($j == 0) {
                     $colLetter = 'A'; // Primera columna (nombre alumno)
@@ -272,26 +361,25 @@ class EvaluacionExport implements WithEvents, WithTitle
                     $sheet->setCellValue($colLetter . $row, $calificacion['valor']);
                 }
 
-                // Establecer promedio
+                // Promedio
                 $sheet->setCellValue($promedioCol . $row, $detalle['promedio']);
-
-                // Aplicar estilo a la nueva fila (bordes, etc.)
-                $range = 'A' . $row . ':' . $promedioCol . $row;
-                $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
             }
         }
 
-        // Actualizar el pie de página con la fecha actual
-        $footerRow = $alumnosStartRow + max(count($this->detalles) + 2, $totalFilasAlumnosPlantilla + 2);
-        $sheet->setCellValue('A' . $footerRow, 'Esta evaluación fue generada el ' . date('d/m/Y H:i:s'));
-        $sheet->mergeCells('A' . $footerRow . ':' . $promedioCol . $footerRow);
-        $sheet->getStyle('A' . $footerRow)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('A' . $footerRow)->getFont()->setItalic(true);
-
-        // Guardar el archivo en una ubicación temporal
+        // Guardar el archivo en un directorio temporal
         $tempFile = storage_path('app/temp/evaluacion_' . $this->evaluacion->id . '_' . time() . '.xlsx');
+
+        // Asegurarse de que el directorio temp existe
+        if (!file_exists(dirname($tempFile))) {
+            mkdir(dirname($tempFile), 0755, true);
+        }
+
+        // Crear el escritor y guardar el archivo
         $writer = new Xlsx($spreadsheet);
         $writer->save($tempFile);
+
+        // Registrar en el log que hemos creado el archivo correctamente
+        \Log::info('Archivo Excel creado correctamente en: ' . $tempFile);
 
         return $tempFile;
     }
