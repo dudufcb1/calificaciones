@@ -34,20 +34,44 @@ return new class extends Migration
             if (!Schema::hasColumn('alumnos', 'observaciones')) {
                 $table->text('observaciones')->nullable()->after('alergias');
             }
-
-            // Añadir el constraint CHECK para la columna 'genero' si no existe
-            if (!Schema::hasColumn('alumnos', 'genero')) {
-                $table->string('genero')->nullable();
-            }
-
-            // Verificar si el constraint CHECK ya existe en SQLite (buscando la definición)
-            $checkExists = DB::selectOne("SELECT sql FROM sqlite_master WHERE type='check' AND sql LIKE '%(genero IN (''masculino'', ''femenino'', ''otro''))%'");
-
-            if (!$checkExists) {
-                // Añadir el constraint CHECK (sin nombrar el constraint)
-                DB::statement('ALTER TABLE alumnos ADD CHECK (genero IN ("masculino", "femenino", "otro"))');
-            }
         });
+
+        // Rename the alumnos table
+        Schema::rename('alumnos', 'alumnos_old');
+
+        // Create the new alumnos table with the CHECK constraint
+        Schema::create('alumnos', function (Blueprint $table) {
+            $table->id();
+            $table->string('nombre');
+            $table->string('apellido_paterno');
+            $table->string('apellido_materno');
+            $table->foreignId('grupo_id')->nullable()->constrained('grupos')->nullOnDelete();
+            $table->string('curp')->nullable()->unique('alumnos_curp_unique');
+            $table->date('fecha_nacimiento')->nullable();
+            $table->string('genero')->nullable();
+            $table->string('estado')->default('activo');
+            $table->timestamps();
+            $table->softDeletes();
+            $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade')->after('id');
+            $table->string('tutor_nombre')->nullable()->after('user_id');
+            $table->string('tutor_telefono')->nullable()->after('tutor_nombre');
+            $table->string('tutor_email')->nullable()->after('tutor_telefono');
+            $table->text('direccion')->nullable()->after('tutor_email');
+            $table->string('telefono_emergencia')->nullable()->after('direccion');
+            $table->text('alergias')->nullable()->after('telefono_emergencia');
+            $table->text('observaciones')->nullable()->after('alergias');
+
+            $table->foreign('grupo_id')->references('id')->on('grupos')->onDelete('set null');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+
+            $table->check('genero IN ("masculino", "femenino", "otro")');
+        });
+
+        // Copy data from the old table to the new table
+        DB::statement('INSERT INTO alumnos (id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones) SELECT id, user_id, nombre, apellido_paterno, apellido_materno, grupo_id, curp, fecha_nacimiento, genero, estado, created_at, updated_at, deleted_at, tutor_nombre, tutor_telefono, tutor_email, direccion, telefono_emergencia, alergias, observaciones FROM alumnos_old');
+
+        // Drop the old table
+        Schema::drop('alumnos_old');
     }
 
     /**
@@ -55,19 +79,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('alumnos', function (Blueprint $table) {
-            $table->dropColumn([
-                'tutor_nombre',
-                'tutor_telefono',
-                'tutor_email',
-                'direccion',
-                'telefono_emergencia',
-                'alergias',
-                'observaciones',
-            ]);
-            // La eliminación de constraints CHECK en SQLite puede ser compleja.
-            // Podrías optar por no hacer nada en el down para este constraint
-            // o considerar una estrategia más avanzada si realmente necesitas revertirlo.
-        });
+        Schema::dropIfExists('alumnos');
+        Schema::rename('alumnos_old', 'alumnos');
     }
 };
