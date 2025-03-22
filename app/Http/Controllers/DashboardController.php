@@ -56,6 +56,18 @@ class DashboardController extends Controller
                 'text' => 'Gestionar Grupos',
                 'icon' => 'group',
                 'color' => 'blue'
+            ],
+            [
+                'route' => 'ciclos.index',
+                'text' => 'Ciclos Escolares',
+                'icon' => 'academics',
+                'color' => 'purple'
+            ],
+            [
+                'route' => 'momentos.index',
+                'text' => 'Momentos Educativos',
+                'icon' => 'document',
+                'color' => 'pink'
             ]
         ];
 

@@ -260,6 +260,89 @@ class AsistenciaMensual extends Component
         return ucfirst(Carbon::createFromDate($this->anio, $this->mes, 1)->locale('es')->monthName);
     }
 
+    public function marcarTodosPresentes($fecha)
+    {
+        // Verificar si es un día no laborable
+        if (in_array($fecha, $this->diasNoLaborables)) {
+            return;
+        }
+
+        // Iterar por cada alumno y guardar asistencia
+        foreach ($this->alumnos as $alumno) {
+            $asistencia = Asistencia::firstOrNew([
+                'alumno_id' => $alumno->id,
+                'fecha' => $fecha
+            ]);
+
+            $asistencia->estado = 'asistio';
+            $asistencia->asistio = true;
+            $asistencia->justificacion = null;
+            $asistencia->user_id = auth()->id();
+            $asistencia->save();
+
+            // Actualizar array de asistencias
+            $this->asistencias[$alumno->id][$fecha] = 'asistio';
+        }
+
+        // Recalcular estadísticas
+        $this->calcularEstadisticas();
+
+        // Notificar al usuario
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'Todos los alumnos marcados como presentes'
+        ]);
+    }
+
+    public function marcarTodosPresentesMes()
+    {
+        if (empty($this->alumnos)) {
+            return;
+        }
+
+        // Obtener todos los días laborables del mes
+        $diasLaborables = [];
+        foreach ($this->diasDelMes as $dia) {
+            $fecha = $dia['fecha'];
+            if (!in_array($fecha, $this->diasNoLaborables)) {
+                $diasLaborables[] = $fecha;
+            }
+        }
+
+        // Contadores para el mensaje
+        $alumnosCount = count($this->alumnos);
+        $diasCount = count($diasLaborables);
+        $totalRegistros = $alumnosCount * $diasCount;
+
+        // Iterar por cada alumno y cada día laborable
+        foreach ($this->alumnos as $alumno) {
+            foreach ($diasLaborables as $fecha) {
+                $asistencia = Asistencia::firstOrNew([
+                    'alumno_id' => $alumno->id,
+                    'fecha' => $fecha
+                ]);
+
+                $asistencia->estado = 'asistio';
+                $asistencia->asistio = true;
+                $asistencia->justificacion = null;
+                $asistencia->user_id = auth()->id();
+                $asistencia->save();
+
+                // Actualizar array de asistencias
+                $this->asistencias[$alumno->id][$fecha] = 'asistio';
+            }
+        }
+
+        // Recalcular estadísticas
+        $this->calcularEstadisticas();
+
+        // Notificar al usuario
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Se han marcado {$totalRegistros} asistencias para {$alumnosCount} alumnos en {$diasCount} días laborables"
+        ]);
+    }
+
     public function render()
     {
         return view('livewire.asistencia.asistencia-mensual');

@@ -62,6 +62,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/asistencia/pasar-lista', AsistenciaPasarLista::class)->name('asistencia.pasar-lista');
         Route::get('/asistencia/reporte', AsistenciaReporte::class)->name('asistencia.reporte');
         Route::get('/asistencia/mensual', AsistenciaMensual::class)->name('asistencia.mensual');
+
+        // Rutas de Ciclos y Momentos
+        Route::get('/ciclos', \App\Livewire\Ciclos\Index::class)->name('ciclos.index');
+        Route::get('/momentos', \App\Livewire\Momentos\Index::class)->name('momentos.index');
     });
 });
 

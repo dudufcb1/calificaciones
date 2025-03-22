@@ -37,6 +37,21 @@
                     </div>
                 </div>
 
+                @if($grupo_id && count($alumnos) > 0 && !$editandoNoLaborables)
+                <div class="mb-4 flex justify-center">
+                    <button
+                        wire:click="marcarTodosPresentesMes"
+                        wire:confirm="¿Está seguro que desea marcar a TODOS los alumnos como presentes en TODOS los días laborables del mes? Esta acción sobreescribirá cualquier asistencia existente."
+                        class="px-4 py-2 bg-green-500 text-white rounded shadow hover:bg-green-600 flex items-center"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Marcar a todos presentes en todo el mes
+                    </button>
+                </div>
+                @endif
+
                 @if($editandoNoLaborables)
                     <div class="mb-4 p-3 bg-yellow-100 rounded">
                         <p class="text-sm text-yellow-800">
@@ -61,7 +76,7 @@
                             <thead>
                                 <!-- Franja de mes y año -->
                                 <tr>
-                                    <th colspan="4" class="px-6 py-2 bg-yellow-300 text-center font-bold text-lg border-b border-gray-300">
+                                    <th colspan="4" class="px-6 py-2 bg-yellow-300 text-center font-bold text-lg border-b border-gray-300 sticky left-0 z-10">
                                         Ciclo escolar 2023-2024
                                     </th>
                                     <th colspan="{{ count($diasDelMes) }}" class="px-6 py-2 bg-yellow-300 text-center font-bold text-lg border-b border-gray-300">
@@ -74,17 +89,28 @@
 
                                 <!-- Sección de títulos -->
                                 <tr class="bg-blue-200">
-                                    <th class="px-1 py-2 text-center text-xs font-medium text-gray-800 border border-gray-300">No.</th>
-                                    <th class="px-6 py-2 text-left text-xs font-medium text-gray-800 border border-gray-300">Nombre</th>
-                                    <th colspan="2" class="px-2 py-2 text-center text-xs font-medium text-gray-800 border border-gray-300">Apellidos</th>
+                                    <th class="px-1 py-2 text-center text-xs font-medium text-gray-800 border border-gray-300 sticky left-0 z-10 bg-blue-200">No.</th>
+                                    <th class="px-6 py-2 text-left text-xs font-medium text-gray-800 border border-gray-300 sticky left-8 z-10 bg-blue-200">Nombre</th>
+                                    <th colspan="2" class="px-2 py-2 text-center text-xs font-medium text-gray-800 border border-gray-300 sticky left-40 z-10 bg-blue-200">Apellidos</th>
 
                                     <!-- Días del mes -->
                                     @foreach($diasDelMes as $dia)
                                         <th
-                                            wire:click="toggleDiaNoLaborable('{{ $dia['fecha'] }}')"
+                                            wire:click="{{ $editandoNoLaborables ? "toggleDiaNoLaborable('{$dia['fecha']}')" : '' }}"
                                             class="px-1 py-1 text-center text-xs font-medium {{ in_array($dia['fecha'], $diasNoLaborables) ? 'bg-gray-300' : ($dia['es_fin_semana'] ? 'bg-gray-100' : 'bg-blue-200') }} cursor-pointer border border-gray-300 {{ $editandoNoLaborables ? 'hover:bg-yellow-200' : '' }}"
                                         >
-                                            {{ $dia['numero'] }}
+                                            <div class="flex flex-col items-center">
+                                                <span>{{ $dia['numero'] }}</span>
+                                                @if(!in_array($dia['fecha'], $diasNoLaborables) && !$editandoNoLaborables)
+                                                    <button
+                                                        wire:click.stop="marcarTodosPresentes('{{ $dia['fecha'] }}')"
+                                                        class="mt-1 text-xs bg-green-500 text-white rounded px-1 hover:bg-green-600"
+                                                        title="Marcar todos presentes"
+                                                    >
+                                                        ✓ Todos
+                                                    </button>
+                                                @endif
+                                            </div>
                                         </th>
                                     @endforeach
 
@@ -98,13 +124,13 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($alumnos as $index => $alumno)
                                     <tr class="{{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }}">
-                                        <td class="px-1 py-2 whitespace-nowrap text-sm text-center border border-gray-300">
+                                        <td class="px-1 py-2 whitespace-nowrap text-sm text-center border border-gray-300 sticky left-0 z-10 {{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }}">
                                             {{ $index + 1 }}
                                         </td>
-                                        <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300">
+                                        <td class="px-2 py-2 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-300 sticky left-8 z-10 {{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }}">
                                             {{ $alumno->nombre }}
                                         </td>
-                                        <td colspan="2" class="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-gray-300">
+                                        <td colspan="2" class="px-2 py-2 whitespace-nowrap text-sm text-gray-500 border border-gray-300 sticky left-40 z-10 {{ $index % 2 == 0 ? 'bg-white' : 'bg-gray-50' }}">
                                             {{ $alumno->apellido_paterno }} {{ $alumno->apellido_materno }}
                                         </td>
 
@@ -118,13 +144,17 @@
                                                     <div class="w-full h-full flex justify-center items-center">
                                                         @php
                                                             $estado = $asistencias[$alumno->id][$dia['fecha']] ?? 'falta';
-                                                            $bgColor = $estado === 'asistio' ? 'bg-green-500' : ($estado === 'falta' ? 'bg-red-500' : 'bg-yellow-500');
+                                                            $bgColor = $estado === 'asistio' ? 'bg-green-100' : ($estado === 'falta' ? 'bg-red-100' : 'bg-yellow-100');
+                                                            $icon = $estado === 'asistio' ? '✓' : ($estado === 'falta' ? '✗' : '!');
+                                                            $textColor = $estado === 'asistio' ? 'text-green-600' : ($estado === 'falta' ? 'text-red-600' : 'text-yellow-600');
                                                         @endphp
 
                                                         <button
                                                             wire:click="guardarAsistencia({{ $alumno->id }}, '{{ $dia['fecha'] }}', '{{ $estado === 'asistio' ? 'falta' : ($estado === 'falta' ? 'justificada' : 'asistio') }}')"
-                                                            class="w-full h-full {{ $bgColor }}"
-                                                        ></button>
+                                                            class="w-full h-full {{ $bgColor }} font-bold text-lg {{ $textColor }}"
+                                                        >
+                                                            {{ $icon }}
+                                                        </button>
                                                     </div>
                                                 @endif
                                             </td>
@@ -158,15 +188,15 @@
                     <!-- Leyenda y ayuda -->
                     <div class="mt-4 flex flex-wrap items-center space-x-6">
                         <div class="flex items-center space-x-2 mt-2">
-                            <div class="w-4 h-4 bg-green-500"></div>
+                            <div class="w-4 h-4 bg-green-100 flex items-center justify-center font-bold text-green-600">✓</div>
                             <span class="text-sm">Asistencia</span>
                         </div>
                         <div class="flex items-center space-x-2 mt-2">
-                            <div class="w-4 h-4 bg-red-500"></div>
+                            <div class="w-4 h-4 bg-red-100 flex items-center justify-center font-bold text-red-600">✗</div>
                             <span class="text-sm">Falta</span>
                         </div>
                         <div class="flex items-center space-x-2 mt-2">
-                            <div class="w-4 h-4 bg-yellow-500"></div>
+                            <div class="w-4 h-4 bg-yellow-100 flex items-center justify-center font-bold text-yellow-600">!</div>
                             <span class="text-sm">Justificada</span>
                         </div>
                         <div class="flex items-center space-x-2 mt-2">

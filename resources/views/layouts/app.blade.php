@@ -170,6 +170,20 @@
                         Asistencia
                     </a>
 
+                    <a href="{{ route('ciclos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('ciclos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Ciclos Escolares
+                    </a>
+
+                    <a href="{{ route('momentos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('momentos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Momentos Educativos
+                    </a>
+
                     @if(auth()->user()->isAdmin())
                         <a href="{{ route('usuarios.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('usuarios.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
