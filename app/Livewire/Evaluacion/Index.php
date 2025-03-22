@@ -665,8 +665,8 @@ class Index extends Component
         $camposFormativos = CampoFormativo::orderBy('nombre')->get();
         $momentos = \App\Models\Momento::orderBy('fecha', 'desc')->get();
 
-        // Añadir el contexto del recurso
-        $resourceContext = $this->getResourceContext();
+        // Forzar el contexto a 'evaluaciones' explícitamente para asegurar que el ResourceVerifier funcione
+        $resourceContext = 'evaluaciones';
 
         // Devolver la vista con los datos, incluido el contexto del recurso
         return view('livewire.evaluacion.index', [

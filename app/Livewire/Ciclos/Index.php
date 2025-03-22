@@ -6,11 +6,13 @@ use App\Models\Ciclo;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
+use App\Traits\WithResourceVerification;
 
 #[Layout('layouts.app')]
 class Index extends Component
 {
     use WithPagination;
+    use WithResourceVerification;
 
     public $ciclo_id;
     public $nombre;
@@ -136,6 +138,9 @@ class Index extends Component
             ->orderBy('anio_inicio', 'desc')
             ->paginate(10);
 
-        return view('livewire.ciclos.index', compact('ciclos'));
+        return view('livewire.ciclos.index', [
+            'ciclos' => $ciclos,
+            'resourceContext' => $this->getResourceContext()
+        ]);
     }
 }

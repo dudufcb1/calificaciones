@@ -20,14 +20,22 @@ class Index extends Component
 
     public function render()
     {
-        $alumnos = Alumno::when($this->search, function($query) {
-            return $query->where('nombre', 'like', '%' . $this->search . '%')
-                         ->orWhere('apellido', 'like', '%' . $this->search . '%');
-        })->paginate(10);
+        // Verificación de depuración
+        $userId = auth()->id();
+        $resourceContext = 'alumnos'; // Forzar el contexto explícitamente
+        $context = $this->getResourceContext();
+        $gruposCount = \App\Models\Grupo::where('user_id', $userId)->count();
+
+        $alumnos = Alumno::where('user_id', auth()->id())
+            ->when($this->search, function($query) {
+                return $query->where('nombre', 'like', '%' . $this->search . '%')
+                             ->orWhere('apellido_paterno', 'like', '%' . $this->search . '%')
+                             ->orWhere('apellido_materno', 'like', '%' . $this->search . '%');
+            })->paginate(10);
 
         return view('livewire.alumno.index', [
             'alumnos' => $alumnos,
-            'resourceContext' => $this->getResourceContext()
+            'resourceContext' => $resourceContext
         ]);
     }
 

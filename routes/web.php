@@ -70,4 +70,10 @@ Route::middleware(['auth'])->group(function () {
     });
 });
 
+// Ruta para la página de inicio
+Route::get('/', App\Livewire\Dashboard::class)->middleware(['auth', 'verified'])->name('dashboard');
+
+// Ruta de prueba para verificar el ResourceVerifier
+Route::get('/test', App\Livewire\Test::class)->middleware(['auth', 'verified'])->name('test');
+
 require __DIR__.'/auth.php';

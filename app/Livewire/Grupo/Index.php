@@ -6,11 +6,13 @@ use Livewire\Component;
 use App\Models\Grupo;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
+use App\Traits\WithResourceVerification;
 
 #[Layout('layouts.app')]
 class Index extends Component
 {
     use WithPagination;
+    use WithResourceVerification;
 
     public $search = '';
     public $grupoId;
@@ -18,12 +20,14 @@ class Index extends Component
 
     public function render()
     {
-        $grupos = Grupo::when($this->search, function($query) {
-            $query->where('nombre', 'like', '%' . $this->search . '%');
-        })->paginate(10);
+        $grupos = Grupo::where('user_id', auth()->id())
+            ->when($this->search, function($query) {
+                $query->where('nombre', 'like', '%' . $this->search . '%');
+            })->paginate(10);
 
         return view('livewire.grupo.index', [
-            'grupos' => $grupos
+            'grupos' => $grupos,
+            'resourceContext' => $this->getResourceContext()
         ]);
     }
 

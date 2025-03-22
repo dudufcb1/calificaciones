@@ -31,6 +31,9 @@ class ResourceVerifier extends Component
     {
         $userId = auth()->id();
 
+        // Registrar información para depuración
+        logger("ResourceVerifier - Contexto: {$this->context}, Usuario: {$userId}");
+
         switch ($this->context) {
             case 'alumnos':
                 $gruposCount = Grupo::where('user_id', $userId)->count();
@@ -77,20 +80,14 @@ class ResourceVerifier extends Component
                 $gruposCount = Grupo::where('user_id', $userId)->count();
                 $alumnosCount = Alumno::where('user_id', $userId)->count();
 
-                if ($momentosCount === 0 && $gruposCount === 0) {
+                if ($momentosCount === 0) {
                     $this->setWarning(
-                        'No tienes momentos educativos ni grupos. Son necesarios para crear evaluaciones.',
+                        'No tienes momentos educativos. Son necesarios para crear evaluaciones.',
                         'error',
                         route('momentos.index'),
                         'Crear un momento educativo'
                     );
-                } elseif ($momentosCount === 0) {
-                    $this->setWarning(
-                        'No tienes momentos educativos. Son necesarios para crear evaluaciones.',
-                        'warning',
-                        route('momentos.index'),
-                        'Crear un momento educativo'
-                    );
+                    return;
                 } elseif ($gruposCount === 0) {
                     $this->setWarning(
                         'No tienes grupos. Son necesarios para crear evaluaciones.',
