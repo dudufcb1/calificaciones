@@ -84,6 +84,30 @@
                             </a>
                         </p>
                     </div>
+
+                    <div class="p-6 border rounded-xl shadow-sm bg-white dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+                            </svg>
+                            <h2 class="ml-3 text-xl font-semibold text-gray-900 dark:text-white">
+                                <a href="{{ route('asistencia.mensual') }}">Vista Mensual de Asistencia</a>
+                            </h2>
+                        </div>
+
+                        <p class="mt-4 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
+                            Visualiza y administra la asistencia con una tabla mensual completa. Marca rápidamente asistencias, faltas y justificaciones por día, y consulta estadísticas por alumno.
+                        </p>
+
+                        <p class="mt-4 text-sm">
+                            <a href="{{ route('asistencia.mensual') }}" class="inline-flex items-center font-semibold text-indigo-700 dark:text-indigo-300">
+                                Ir a Vista Mensual
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" class="ml-1 w-5 h-5 fill-indigo-500 dark:fill-indigo-200">
+                                    <path fill-rule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clip-rule="evenodd" />
+                                </svg>
+                            </a>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

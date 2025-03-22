@@ -14,6 +14,7 @@ use App\Livewire\Asistencia\Index as AsistenciaIndex;
 use App\Livewire\Asistencia\Configuracion as AsistenciaConfiguracion;
 use App\Livewire\Asistencia\PasarLista as AsistenciaPasarLista;
 use App\Livewire\Asistencia\Reporte as AsistenciaReporte;
+use App\Livewire\Asistencia\AsistenciaMensual;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvaluacionController;
 
@@ -60,6 +61,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/asistencia/configuracion', AsistenciaConfiguracion::class)->name('asistencia.configuracion');
         Route::get('/asistencia/pasar-lista', AsistenciaPasarLista::class)->name('asistencia.pasar-lista');
         Route::get('/asistencia/reporte', AsistenciaReporte::class)->name('asistencia.reporte');
+        Route::get('/asistencia/mensual', AsistenciaMensual::class)->name('asistencia.mensual');
     });
 });
 
