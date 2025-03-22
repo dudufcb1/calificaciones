@@ -2,7 +2,7 @@
     <div class="sm:flex sm:items-center">
         <div class="sm:flex-auto">
             <h1 class="text-xl font-semibold text-gray-900">Evaluaciones</h1>
-            <p class="mt-2 text-sm text-gray-700">Lista de evaluaciones realizadas por campo formativo.</p>
+            <p class="mt-2 text-sm text-gray-700">Lista de evaluaciones realizadas por momento y campo formativo.</p>
         </div>
         <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex space-x-2">
             <button wire:click="toggleSeleccionMultiple"
@@ -21,7 +21,7 @@
 
             <a href="{{ route('evaluaciones.create') }}"
                class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
-                Nueva Evaluación
+                Evaluar Momento
             </a>
         </div>
     </div>
@@ -32,13 +32,22 @@
                 <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
                     <div class="bg-white px-4 py-3 border-b border-gray-200">
                         <div class="flex items-center space-x-4">
+                            <div>
+                                <select wire:model.live="momentoFilter"
+                                        class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="">Todos los momentos</option>
+                                    @foreach($momentos as $momento)
+                                        <option value="{{ $momento->id }}">{{ $momento->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
                             <div class="flex-1">
                                 <label for="search" class="sr-only">Buscar</label>
                                 <div class="relative rounded-md shadow-sm">
                                     <input type="text"
                                            wire:model.live.debounce.300ms="search"
                                            class="block w-full pr-10 sm:text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                                           placeholder="Buscar por título o alumno...">
+                                           placeholder="Buscar por alumno...">
                                     <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                             <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
@@ -67,7 +76,7 @@
                                 </th>
                                 @endif
                                 <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Título
+                                    Grupo
                                 </th>
                                 <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Campo Formativo
@@ -80,6 +89,9 @@
                                 </th>
                                 <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Alumnos
+                                </th>
+                                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Estado
                                 </th>
                                 <th scope="col" class="relative px-3 py-3">
                                     <span class="sr-only">Acciones</span>
@@ -100,7 +112,7 @@
                                     </td>
                                     @endif
                                     <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                                        {{ $evaluacion->titulo }}
+                                        {{ $evaluacion->grupo ? $evaluacion->grupo->nombre : 'N/A' }}
                                     </td>
                                     <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                                         {{ $evaluacion->campoFormativo->nombre }}
@@ -110,13 +122,32 @@
                                     </td>
                                     <td class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-900">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                            {{ $evaluacion->momento ? $evaluacion->momento->value : 'No definido' }}
+                                            {{ $evaluacion->momentoObj ? $evaluacion->momentoObj->nombre : ($evaluacion->momento ? $evaluacion->momento->value : 'No definido') }}
                                         </span>
                                     </td>
                                     <td class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-900">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                             {{ $evaluacion->detalles->count() }} alumnos
                                         </span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-900">
+                                        @php
+                                            $totalAlumnos = $evaluacion->detalles->count();
+                                            $alumnosCalificados = $evaluacion->detalles->filter(function($detalle) {
+                                                return $detalle->promedio_final > 0;
+                                            })->count();
+                                            $completado = $totalAlumnos > 0 && $alumnosCalificados == $totalAlumnos;
+                                        @endphp
+
+                                        @if($completado)
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                Finalizado
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                Pendiente ({{ $alumnosCalificados }}/{{ $totalAlumnos }})
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                         <div class="flex justify-end space-x-2">
@@ -134,7 +165,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $seleccionMultiple ? 7 : 6 }}" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                    <td colspan="{{ $seleccionMultiple ? 8 : 7 }}" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                         No hay evaluaciones registradas.
                                     </td>
                                 </tr>

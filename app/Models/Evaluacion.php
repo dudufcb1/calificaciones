@@ -25,6 +25,9 @@ class Evaluacion extends Model
         'is_draft',
         'user_id',
         'momento',
+        'momento_id',
+        'grupo_id',
+        'promedio_final',
     ];
 
     protected $casts = [
@@ -56,6 +59,16 @@ class Evaluacion extends Model
     public function campoFormativo(): BelongsTo
     {
         return $this->belongsTo(CampoFormativo::class);
+    }
+
+    public function momentoObj(): BelongsTo
+    {
+        return $this->belongsTo(Momento::class, 'momento_id');
+    }
+
+    public function grupo(): BelongsTo
+    {
+        return $this->belongsTo(Grupo::class);
     }
 
     public function criterios(): BelongsToMany

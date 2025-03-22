@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Momento extends Model
 {
@@ -30,6 +31,14 @@ class Momento extends Model
     public function ciclo(): BelongsTo
     {
         return $this->belongsTo(Ciclo::class);
+    }
+
+    /**
+     * Obtener los campos formativos asociados a este momento
+     */
+    public function camposFormativos(): BelongsToMany
+    {
+        return $this->belongsToMany(CampoFormativo::class, 'momento_campo_formativo');
     }
 
     /**

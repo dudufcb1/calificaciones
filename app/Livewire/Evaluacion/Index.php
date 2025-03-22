@@ -18,6 +18,7 @@ class Index extends Component
 
     public $search = '';
     public $campoFormativoFilter = '';
+    public $momentoFilter = '';
     public $evaluacionId;
     public $showDeleteModal = false;
     public $seleccionMultiple = false;
@@ -26,7 +27,8 @@ class Index extends Component
 
     protected $queryString = [
         'search' => ['except' => ''],
-        'campoFormativoFilter' => ['except' => '']
+        'campoFormativoFilter' => ['except' => ''],
+        'momentoFilter' => ['except' => '']
     ];
 
     public function updatingSearch()
@@ -35,6 +37,11 @@ class Index extends Component
     }
 
     public function updatingCampoFormativoFilter()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingMomentoFilter()
     {
         $this->resetPage();
     }
@@ -634,25 +641,32 @@ class Index extends Component
 
     public function render()
     {
-        $query = Evaluacion::query()
-            ->with(['detalles.alumno', 'campoFormativo'])
+        $evaluacionesQuery = Evaluacion::with(['campoFormativo', 'detalles', 'momentoObj', 'grupo'])
             ->when($this->search, function ($query) {
-                $query->where(function($q) {
-                    $q->where('titulo', 'like', '%' . $this->search . '%')
-                      ->orWhereHas('detalles.alumno', function ($q) {
-                          $q->where('nombre', 'like', '%' . $this->search . '%')
+                $query->whereHas('detalles.alumno', function ($q) {
+                    $q->where(function ($q) {
+                        $q->where('nombre', 'like', '%' . $this->search . '%')
                             ->orWhere('apellido_paterno', 'like', '%' . $this->search . '%')
                             ->orWhere('apellido_materno', 'like', '%' . $this->search . '%');
-                      });
+                    });
                 });
             })
             ->when($this->campoFormativoFilter, function ($query) {
                 $query->where('campo_formativo_id', $this->campoFormativoFilter);
-            });
+            })
+            ->when($this->momentoFilter, function ($query) {
+                $query->where('momento_id', $this->momentoFilter);
+            })
+            ->orderBy('created_at', 'desc');
+
+        $evaluaciones = $evaluacionesQuery->paginate(10);
+        $camposFormativos = CampoFormativo::orderBy('nombre')->get();
+        $momentos = \App\Models\Momento::orderBy('fecha', 'desc')->get();
 
         return view('livewire.evaluacion.index', [
-            'evaluaciones' => $query->latest()->paginate(10),
-            'camposFormativos' => CampoFormativo::all()
+            'evaluaciones' => $evaluaciones,
+            'camposFormativos' => $camposFormativos,
+            'momentos' => $momentos,
         ]);
     }
 }

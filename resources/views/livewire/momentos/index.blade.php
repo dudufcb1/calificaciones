@@ -34,6 +34,7 @@
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ciclo</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rango de Fechas</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campos Formativos</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
                         </thead>
@@ -58,6 +59,19 @@
                                             <span class="text-gray-400">No definido</span>
                                         @endif
                                     </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                        @if($momento->camposFormativos->count() > 0)
+                                            <div class="flex flex-wrap gap-1">
+                                                @foreach($momento->camposFormativos as $campoFormativo)
+                                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                                        {{ $campoFormativo->nombre }}
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-gray-400">No hay campos formativos</span>
+                                        @endif
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <button wire:click="edit({{ $momento->id }})" class="text-indigo-600 hover:text-indigo-900 mr-3">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -73,7 +87,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                    <td colspan="7" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                         No hay momentos registrados. Crea uno nuevo usando el botón "Nuevo Momento".
                                     </td>
                                 </tr>
@@ -146,6 +160,33 @@
                                         </div>
                                     </div>
                                 @endif
+
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700">Campos Formativos</label>
+                                    <div class="mt-2 border border-gray-300 rounded-md p-2 max-h-40 overflow-y-auto">
+                                        @if(count($camposFormativos) > 0)
+                                            <div class="flex flex-wrap gap-2">
+                                                @foreach($camposFormativos as $campoFormativo)
+                                                    <div class="flex items-center space-x-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="campo_{{ $campoFormativo['id'] }}"
+                                                            value="{{ $campoFormativo['id'] }}"
+                                                            wire:click="toggleCampoFormativo({{ $campoFormativo['id'] }})"
+                                                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                            {{ in_array($campoFormativo['id'], $selectedCamposFormativos) ? 'checked' : '' }}
+                                                        >
+                                                        <label for="campo_{{ $campoFormativo['id'] }}" class="text-sm text-gray-700">
+                                                            {{ $campoFormativo['nombre'] }}
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <p class="text-sm text-gray-500">No hay campos formativos disponibles</p>
+                                        @endif
+                                    </div>
+                                </div>
                             </form>
                         </div>
                     </div>

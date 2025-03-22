@@ -9,6 +9,7 @@ use App\Models\Criterio;
 use App\Models\Evaluacion;
 use App\Models\EvaluacionDetalle;
 use App\Models\Grupo;
+use App\Models\Momento;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
@@ -23,22 +24,25 @@ class Form extends Component
     public $campoFormativoId;
     public $criterios = [];
     public $grupoId;
+    public $momentoId;
+    public $camposFormativos = [];
     public $alumnosSeleccionados = [];
     public $alumnosEvaluados = [];
     public $editing = false;
     public $autoSaveMessage = '';
     public $mostrarSeleccionAlumnos = false;
+    public $selectedCampoFormativo = null;
 
     protected $rules = [
-        'titulo' => 'required|string|max:255',
-        'descripcion' => 'nullable|string',
-        'fecha_evaluacion' => 'nullable|date',
-        'campoFormativoId' => 'required|exists:campo_formativos,id',
+        'momentoId' => 'required|exists:momentos,id',
+        'grupoId' => 'required|exists:grupos,id',
         'alumnosEvaluados.*.calificaciones.*.valor' => 'required|numeric|min:0|max:100',
     ];
 
     // Mensajes de validación personalizados
     protected $messages = [
+        'momentoId.required' => 'Debes seleccionar un momento para evaluar.',
+        'grupoId.required' => 'Debes seleccionar un grupo para evaluar.',
         'alumnosEvaluados.*.calificaciones.*.valor.required' => 'La calificación es obligatoria.',
         'alumnosEvaluados.*.calificaciones.*.valor.numeric' => 'La calificación debe ser un valor numérico.',
         'alumnosEvaluados.*.calificaciones.*.valor.min' => 'La calificación mínima es 0.',
@@ -49,7 +53,6 @@ class Form extends Component
     {
         $this->evaluacionId = $evaluacionId;
         $this->fecha_evaluacion = now()->format('Y-m-d');
-        $this->momento = MomentoEvaluacion::PRIMER_MOMENTO->value; // Valor por defecto
 
         if ($evaluacionId) {
             $this->editing = true;
@@ -59,16 +62,25 @@ class Form extends Component
 
     public function loadEvaluacion()
     {
-        $evaluacion = Evaluacion::with(['detalles.alumno', 'detalles.criterios', 'user'])
+        $evaluacion = Evaluacion::with(['detalles.alumno', 'detalles.criterios', 'user', 'momentoObj', 'grupo', 'campoFormativo'])
             ->findOrFail($this->evaluacionId);
 
         $this->titulo = $evaluacion->titulo;
         $this->descripcion = $evaluacion->descripcion;
         $this->fecha_evaluacion = $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('Y-m-d') : now()->format('Y-m-d');
-        $this->momento = $evaluacion->momento ? $evaluacion->momento->value : MomentoEvaluacion::PRIMER_MOMENTO->value;
+
+        // Usar el nuevo sistema de momento y grupo
+        $this->momentoId = $evaluacion->momento_id;
+        $this->grupoId = $evaluacion->grupo_id;
         $this->campoFormativoId = $evaluacion->campo_formativo_id;
 
-        $this->updatedCampoFormativoId();
+        if ($this->momentoId) {
+            $this->updatedMomentoId();
+        }
+
+        if ($this->campoFormativoId) {
+            $this->updatedCampoFormativoId();
+        }
 
         // Cargar los alumnos ya evaluados
         foreach ($evaluacion->detalles as $detalle) {
@@ -102,34 +114,85 @@ class Form extends Component
         }
     }
 
+    public function updatedMomentoId()
+    {
+        if (!$this->momentoId) {
+            $this->camposFormativos = [];
+            $this->campoFormativoId = null;
+            return;
+        }
+
+        // Obtener el momento con sus campos formativos y criterios
+        $momento = Momento::with([
+            'camposFormativos',
+            'camposFormativos.criterios'
+        ])->find($this->momentoId);
+
+        if ($momento) {
+            $this->camposFormativos = $momento->camposFormativos->toArray();
+
+            // Solo si estamos editando, seleccionar automáticamente un campo formativo
+            if ($this->editing) {
+                // Si no hay campo formativo seleccionado y hay campos formativos disponibles, seleccionar el primero
+                if (!$this->campoFormativoId && count($this->camposFormativos) > 0) {
+                    $this->campoFormativoId = $this->camposFormativos[0]['id'];
+                    $this->updatedCampoFormativoId();
+                }
+            } else {
+                // En modo creación, limpiamos el campo formativo seleccionado
+                // ya que crearemos evaluaciones para todos los campos formativos
+                $this->campoFormativoId = null;
+                $this->criterios = [];
+                $this->alumnosEvaluados = [];
+            }
+        }
+    }
+
     public function updatedCampoFormativoId()
     {
-        if ($this->campoFormativoId) {
-            $this->criterios = Criterio::where('campo_formativo_id', $this->campoFormativoId)
-                ->orderBy('orden')
-                ->get()
-                ->toArray();
+        if (!$this->campoFormativoId) {
+            $this->criterios = [];
+            return;
+        }
+
+        // Obtener los criterios del campo formativo
+        $campoFormativo = CampoFormativo::with(['criterios' => function ($query) {
+            $query->orderBy('orden');
+        }])->find($this->campoFormativoId);
+
+        if ($campoFormativo) {
+            $this->criterios = $campoFormativo->criterios->map(function ($criterio) {
+                return [
+                    'id' => $criterio->id,
+                    'nombre' => $criterio->nombre,
+                    'descripcion' => $criterio->descripcion,
+                    'porcentaje' => $criterio->porcentaje,
+                ];
+            })->toArray();
         }
     }
 
     public function updatedGrupoId()
     {
         if ($this->grupoId) {
-            $this->alumnosSeleccionados = [];
+            $this->cargarAlumnosGrupo();
         }
     }
 
     public function updated($field)
     {
-        // Solo actualizar el promedio cuando cambia una calificación,
-        // sin hacer validación en tiempo real
-        if (preg_match('/alumnosEvaluados\.\d+\.calificaciones\.\d+\.valor/', $field)) {
-            // Extraer el índice del alumno del path del campo
-            $parts = explode('.', $field);
-            if (count($parts) >= 5 && $parts[2] == 'calificaciones' && $parts[4] == 'valor') {
-                $alumnoIndex = (int)$parts[1];
+        if (str_starts_with($field, 'alumnosEvaluados.')) {
+            // Extraer el índice del alumno del nombre del campo
+            preg_match('/alumnosEvaluados\.(\d+)/', $field, $matches);
+            if (isset($matches[1])) {
+                $alumnoIndex = $matches[1];
                 $this->calcularPromedio($alumnoIndex);
             }
+        }
+
+        // Autosave para formularios editados
+        if ($this->editing && $this->evaluacionId) {
+            $this->autosave();
         }
     }
 
@@ -141,137 +204,173 @@ class Form extends Component
     public function cargarAlumnosGrupo()
     {
         if (!$this->grupoId) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Seleccione un grupo primero']);
             return;
         }
 
-        // Obtener los alumnos del grupo seleccionado
-        $alumnos = Alumno::where('grupo_id', $this->grupoId)
-            ->where('estado', 'activo')
-            ->get();
+        $grupo = Grupo::with('alumnos')->find($this->grupoId);
+        if (!$grupo) {
+            return;
+        }
 
-        // Agregar solo los alumnos que no estén ya evaluados
-        $alumnosEvaluadosIds = collect($this->alumnosEvaluados)->pluck('alumno_id')->toArray();
+        if ($this->editing && $this->evaluacionId && empty($this->alumnosEvaluados)) {
+            // Si estamos editando y no hay alumnos cargados, cargar todos los alumnos del grupo
+            // y añadir calificaciones vacías para cada criterio
+            $evaluacion = Evaluacion::with(['detalles.alumno', 'detalles.criterios'])->find($this->evaluacionId);
+            if ($evaluacion) {
+                $this->loadEvaluacion(); // Recarga la evaluación para obtener los alumnos
+                return;
+            }
+        }
+
+        // Esto es para modo creación o si falló la carga en modo edición
+        $this->alumnosSeleccionados = [];
+        $alumnos = $grupo->alumnos()->orderBy('apellido_paterno')->get();
 
         foreach ($alumnos as $alumno) {
-            if (!in_array($alumno->id, $alumnosEvaluadosIds)) {
-                $this->alumnosSeleccionados[$alumno->id] = true;
+            // Verificar si el alumno ya está en alumnosEvaluados
+            $yaEvaluado = collect($this->alumnosEvaluados)->pluck('alumno_id')->contains($alumno->id);
+
+            if (!$yaEvaluado) {
+                $this->alumnosSeleccionados[] = [
+                    'id' => $alumno->id,
+                    'nombre' => $alumno->nombre_completo,
+                    'selected' => true,
+                ];
             }
+        }
+
+        // Si no hay alumnos seleccionados, agregar directamente todos los alumnos del grupo
+        if (empty($this->alumnosEvaluados) && !empty($this->alumnosSeleccionados)) {
+            $this->agregarAlumnosSeleccionados();
         }
     }
 
     public function agregarAlumnosSeleccionados()
     {
-        if (empty($this->alumnosSeleccionados)) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'No hay alumnos seleccionados']);
+        // Verificar que haya criterios si estamos en modo edición
+        if ($this->editing && empty($this->criterios) && $this->campoFormativoId) {
+            // Intentar cargar los criterios nuevamente
+            $this->updatedCampoFormativoId();
+
+            // Si aún no hay criterios, mostrar error
+            if (empty($this->criterios)) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No hay criterios de evaluación disponibles para este campo formativo.'
+                ]);
+                return;
+            }
+        } else if (empty($this->criterios) && $this->editing) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Seleccione un campo formativo para cargar los criterios de evaluación.'
+            ]);
             return;
         }
 
-        if (empty($this->criterios)) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Seleccione un campo formativo primero']);
-            return;
-        }
+        $alumnosSeleccionados = collect($this->alumnosSeleccionados)
+            ->filter(function ($alumno) {
+                return $alumno['selected'] ?? false;
+            });
 
-        // Filtrar solo los IDs de alumnos seleccionados
-        $alumnosIds = [];
-        foreach ($this->alumnosSeleccionados as $id => $selected) {
-            if ($selected) {
-                $alumnosIds[] = $id;
+        foreach ($alumnosSeleccionados as $alumno) {
+            // Verificar si el alumno ya está en alumnosEvaluados
+            $yaEvaluado = collect($this->alumnosEvaluados)->pluck('alumno_id')->contains($alumno['id']);
+
+            if (!$yaEvaluado) {
+                $calificaciones = [];
+
+                foreach ($this->criterios as $criterio) {
+                    $calificaciones[] = [
+                        'criterio_id' => $criterio['id'],
+                        'valor' => 0,
+                        'ponderada' => 0,
+                    ];
+                }
+
+                $this->alumnosEvaluados[] = [
+                    'detalle_id' => null,
+                    'alumno_id' => $alumno['id'],
+                    'nombre' => $alumno['nombre'],
+                    'calificaciones' => $calificaciones,
+                    'promedio' => 0,
+                    'observaciones' => ''
+                ];
             }
         }
 
-        // Obtener los datos de los alumnos
-        $alumnos = Alumno::whereIn('id', $alumnosIds)->get();
-
-        // Preparar las calificaciones en blanco para cada criterio
-        $calificacionesVacias = [];
-        foreach ($this->criterios as $criterio) {
-            $calificacionesVacias[] = [
-                'criterio_id' => $criterio['id'],
-                'valor' => null,
-                'ponderada' => 0
-            ];
-        }
-
-        // Agregar los alumnos a la lista de evaluados
-        foreach ($alumnos as $alumno) {
-            $this->alumnosEvaluados[] = [
-                'alumno_id' => $alumno->id,
-                'nombre' => $alumno->nombre_completo,
-                'calificaciones' => $calificacionesVacias,
-                'promedio' => 0,
-                'observaciones' => ''
-            ];
-        }
-
-        // Limpiar selección
-        $this->alumnosSeleccionados = [];
         $this->mostrarSeleccionAlumnos = false;
 
-        $this->autosave();
+        // Limpia la selección
+        $this->alumnosSeleccionados = array_map(function ($alumno) {
+            $alumno['selected'] = false;
+            return $alumno;
+        }, $this->alumnosSeleccionados);
     }
 
     public function eliminarAlumno($index)
     {
-        $detalle = $this->alumnosEvaluados[$index];
+        // Solo permitir eliminar alumnos si la evaluación es nueva o está en borrador
+        if (!$this->editing || ($this->editing && ($this->is_draft ?? true))) {
 
-        // Si ya existe un detalle en la BD, eliminarlo
-        if (isset($detalle['detalle_id'])) {
-            EvaluacionDetalle::find($detalle['detalle_id'])->delete();
+            // Si el alumno ya tiene un detalle creado, necesitaremos marcarlo para eliminación
+            if (isset($this->alumnosEvaluados[$index]['detalle_id']) && $this->alumnosEvaluados[$index]['detalle_id']) {
+                // Aquí podrías marcar el detalle para eliminación si es necesario
+            }
+
+            // Eliminar del array
+            array_splice($this->alumnosEvaluados, $index, 1);
+
+            // Autosave si estamos editando
+            if ($this->editing && $this->evaluacionId) {
+                $this->autosave();
+            }
         }
-
-        // Eliminar de la lista
-        unset($this->alumnosEvaluados[$index]);
-        $this->alumnosEvaluados = array_values($this->alumnosEvaluados);
-
-        $this->autosave();
     }
 
     public function calcularPromedio($alumnoIndex)
     {
-        if (!isset($this->alumnosEvaluados[$alumnoIndex]) ||
-            empty($this->alumnosEvaluados[$alumnoIndex]['calificaciones']) ||
-            empty($this->criterios)) {
-            $this->alumnosEvaluados[$alumnoIndex]['promedio'] = 0;
+        if (!isset($this->alumnosEvaluados[$alumnoIndex])) {
             return;
         }
 
-        $sumaPonderada = 0;
-        $sumaPesos = 0;
+        $alumno = &$this->alumnosEvaluados[$alumnoIndex];
+        $totalPonderado = 0;
+        $totalPorcentaje = 0;
 
-        foreach ($this->alumnosEvaluados[$alumnoIndex]['calificaciones'] as $index => $calificacion) {
-            try {
-                $criterioId = $calificacion['criterio_id'];
+        foreach ($alumno['calificaciones'] as &$calificacion) {
+            $criterioId = $calificacion['criterio_id'];
+            $valor = floatval($calificacion['valor']);
 
-                // Buscar el criterio correspondiente
-                $criterioIndex = collect($this->criterios)->search(function($item) use ($criterioId) {
-                    return $item['id'] == $criterioId;
-                });
-
-                if ($criterioIndex !== false) {
-                    $criterio = $this->criterios[$criterioIndex];
-                    $porcentaje = $criterio['porcentaje'];
-
-                    // Asegurarse de que el valor es numérico
-                    $valor = is_numeric($calificacion['valor']) ? (float)$calificacion['valor'] : 0;
-
-                    // Calcular la calificación ponderada
-                    $ponderada = ($valor * $porcentaje) / 100;
-
-                    // Actualizar el valor ponderado en la estructura de datos
-                    $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$index]['ponderada'] = $ponderada;
-
-                    $sumaPonderada += $ponderada;
-                    $sumaPesos += $porcentaje;
+            // Encontrar el criterio correspondiente
+            $criterio = null;
+            foreach ($this->criterios as $c) {
+                if ($c['id'] == $criterioId) {
+                    $criterio = $c;
+                    break;
                 }
-            } catch (\Exception $e) {
-                // En caso de error, ignorar este criterio
-                continue;
+            }
+
+            if ($criterio) {
+                $porcentaje = floatval($criterio['porcentaje']);
+                $totalPorcentaje += $porcentaje;
+
+                // Calcular el valor ponderado
+                $calificacion['ponderada'] = ($valor * $porcentaje) / 100;
+                $totalPonderado += $calificacion['ponderada'];
             }
         }
 
-        // Calcular promedio final
-        $this->alumnosEvaluados[$alumnoIndex]['promedio'] = $sumaPesos > 0 ? round($sumaPonderada, 2) : 0;
+        // Asignar el promedio final
+        if ($totalPorcentaje > 0) {
+            // Si el total de porcentajes no es 100%, ajustar el promedio
+            if ($totalPorcentaje != 100) {
+                $totalPonderado = ($totalPonderado * 100) / $totalPorcentaje;
+            }
+            $alumno['promedio'] = round($totalPonderado, 2);
+        } else {
+            $alumno['promedio'] = 0;
+        }
     }
 
     public function limpiarCalificaciones($index)
@@ -280,175 +379,347 @@ class Form extends Component
             return;
         }
 
-        // Establecer todas las calificaciones a vacío
-        foreach ($this->alumnosEvaluados[$index]['calificaciones'] as $calIndex => $calificacion) {
-            $this->alumnosEvaluados[$index]['calificaciones'][$calIndex]['valor'] = '';
-            $this->alumnosEvaluados[$index]['calificaciones'][$calIndex]['ponderada'] = 0;
+        $alumno = &$this->alumnosEvaluados[$index];
+
+        foreach ($alumno['calificaciones'] as &$calificacion) {
+            $calificacion['valor'] = 0;
+            $calificacion['ponderada'] = 0;
         }
 
-        // Actualizar el promedio
-        $this->alumnosEvaluados[$index]['promedio'] = 0;
+        $alumno['promedio'] = 0;
+        $alumno['observaciones'] = '';
 
-        $this->autosave();
+        // Autosave si estamos editando
+        if ($this->editing && $this->evaluacionId) {
+            $this->autosave();
+        }
     }
 
     public function updatedAlumnosEvaluados($value, $index)
     {
-        try {
-            // Extraer el índice del alumno del path del índice
-            $parts = explode('.', $index);
+        // Verificar si el campo actualizado es una calificación
+        if (preg_match('/alumnosEvaluados\.(\d+)\.calificaciones\.(\d+)\.valor/', $index, $matches)) {
+            $alumnoIndex = $matches[1];
+            $calificacionIndex = $matches[2];
 
-            if (count($parts) >= 5 && $parts[2] == 'calificaciones' && $parts[4] == 'valor') {
-                $alumnoIndex = (int)$parts[0];
-                $calIndex = (int)$parts[3];
-
-                // Verificar que el valor sea numérico
-                if (isset($this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'])) {
-                    $valor = $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'];
-                    if (!is_numeric($valor)) {
-                        // Si no es numérico, establecerlo a 0
-                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = 0;
-                    } else {
-                        // Asegurarnos de que esté dentro del rango permitido (0-100)
-                        $valor = (float) $valor;
-                        if ($valor < 0) $valor = 0;
-                        if ($valor > 100) $valor = 100;
-                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = $valor;
-                    }
-                }
-
-                $this->calcularPromedio($alumnoIndex);
-                $this->autosave();
+            // Verificar que el valor sea numérico
+            if ($value === '' || $value === null) {
+                // Si está vacío, establecer en 0
+                $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calificacionIndex]['valor'] = 0;
+            } else if (!is_numeric($value)) {
+                // Si no es numérico, intentar convertirlo o establecer en 0
+                $cleanedValue = preg_replace('/[^\d]/', '', $value);
+                $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calificacionIndex]['valor'] =
+                    empty($cleanedValue) ? 0 : (int)$cleanedValue;
+            } else {
+                // Asegurarse de que el valor esté dentro del rango permitido
+                $numericValue = (int)$value;
+                if ($numericValue < 0) $numericValue = 0;
+                if ($numericValue > 100) $numericValue = 100;
+                $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calificacionIndex]['valor'] = $numericValue;
             }
-        } catch (\Exception $e) {
-            // Capturar cualquier excepción para evitar que la página se rompa
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Error al actualizar calificación: ' . $e->getMessage()]);
+
+            // Recalcular el promedio para este alumno
+            $this->calcularPromedio($alumnoIndex);
         }
     }
 
     public function recalcularTodos()
     {
-        foreach ($this->alumnosEvaluados as $index => $alumno) {
+        foreach (array_keys($this->alumnosEvaluados) as $index) {
             $this->calcularPromedio($index);
         }
-        $this->autosave();
     }
 
     public function autosave()
     {
-        if (!$this->campoFormativoId || empty($this->titulo)) {
-            return;
-        }
+        $this->validate([
+            'momentoId' => 'required|exists:momentos,id',
+            'grupoId' => 'required|exists:grupos,id',
+            'campoFormativoId' => 'required|exists:campo_formativos,id',
+        ]);
 
-        // Guardar la evaluación
-        $evaluacion = $this->editing
-            ? Evaluacion::find($this->evaluacionId)
-            : new Evaluacion();
+        $evaluacion = Evaluacion::findOrFail($this->evaluacionId);
 
-        $evaluacion->titulo = $this->titulo;
-        $evaluacion->descripcion = $this->descripcion;
-        $evaluacion->fecha_evaluacion = $this->fecha_evaluacion;
-        $evaluacion->momento = $this->momento;
-        $evaluacion->campo_formativo_id = $this->campoFormativoId;
-        $evaluacion->is_draft = true;
-        $evaluacion->save();
+        // Generate a more concise title
+        $grupo = Grupo::find($this->grupoId);
+        $generatedTitle = "Grupo {$grupo->nombre}";
 
-        if (!$this->editing) {
-            $this->evaluacionId = $evaluacion->id;
-            $this->editing = true;
-        }
+        // Actualizar los datos básicos de la evaluación
+        $evaluacion->update([
+            'titulo' => $generatedTitle,
+            'campo_formativo_id' => $this->campoFormativoId,
+            'momento_id' => $this->momentoId,
+            'grupo_id' => $this->grupoId,
+            'fecha_evaluacion' => $this->fecha_evaluacion,
+        ]);
 
-        // Guardar los detalles de alumnos
-        foreach ($this->alumnosEvaluados as $index => $alumnoData) {
+        // Procesar los detalles de evaluación
+        foreach ($this->alumnosEvaluados as $alumnoEvaluado) {
+            $detalleId = $alumnoEvaluado['detalle_id'] ?? null;
+            $alumnoId = $alumnoEvaluado['alumno_id'];
+            $promedio = $alumnoEvaluado['promedio'];
+            $observaciones = $alumnoEvaluado['observaciones'] ?? '';
+
             // Crear o actualizar el detalle
-            $detalle = isset($alumnoData['detalle_id'])
-                ? EvaluacionDetalle::find($alumnoData['detalle_id'])
-                : new EvaluacionDetalle();
+            $detalle = EvaluacionDetalle::updateOrCreate(
+                [
+                    'id' => $detalleId,
+                    'evaluacion_id' => $evaluacion->id,
+                    'alumno_id' => $alumnoId,
+                ],
+                [
+                    'promedio_final' => $promedio,
+                    'observaciones' => $observaciones,
+                ]
+            );
 
-            $detalle->evaluacion_id = $evaluacion->id;
-            $detalle->alumno_id = $alumnoData['alumno_id'];
-            $detalle->promedio_final = $alumnoData['promedio'];
-            $detalle->observaciones = $alumnoData['observaciones'] ?? null;
-            $detalle->save();
-
-            // Guardar el ID del detalle para futuras actualizaciones
-            $this->alumnosEvaluados[$index]['detalle_id'] = $detalle->id;
-
-            // Guardar las calificaciones de los criterios
-            foreach ($alumnoData['calificaciones'] as $calificacion) {
-                if (isset($calificacion['valor']) && $calificacion['valor'] !== null) {
-                    $detalle->criterios()->syncWithoutDetaching([
-                        $calificacion['criterio_id'] => [
-                            'calificacion' => $calificacion['valor'],
-                            'calificacion_ponderada' => $calificacion['ponderada']
-                        ]
-                    ]);
+            // Sincronizar los criterios y calificaciones
+            $criteriosData = [];
+            foreach ($alumnoEvaluado['calificaciones'] as $calificacion) {
+                // Asegurarse de que el valor sea numérico antes de guardarlo
+                $valor = $calificacion['valor'];
+                if ($valor === '' || $valor === null) {
+                    $valor = 0;
+                } else if (!is_numeric($valor)) {
+                    $valor = preg_replace('/[^\d]/', '', $valor);
+                    $valor = empty($valor) ? 0 : (int)$valor;
+                } else {
+                    $valor = (int)$valor;
+                    if ($valor < 0) $valor = 0;
+                    if ($valor > 100) $valor = 100;
                 }
+
+                $criteriosData[$calificacion['criterio_id']] = [
+                    'calificacion' => $valor,
+                    'calificacion_ponderada' => (float)$calificacion['ponderada'],
+                ];
             }
+
+            $detalle->criterios()->sync($criteriosData);
         }
 
-        $this->autoSaveMessage = 'Guardado automático: ' . now()->format('H:i:s');
+        // Eliminar detalles que ya no existen en alumnosEvaluados
+        $alumnosIds = collect($this->alumnosEvaluados)->pluck('alumno_id')->toArray();
+        $evaluacion->detalles()
+            ->whereNotIn('alumno_id', $alumnosIds)
+            ->delete();
+
+        $evaluacion->recalcularPromedio();
+
+        $this->autoSaveMessage = 'Guardado automáticamente: ' . now()->format('H:i:s');
     }
 
     public function finalizar()
     {
-        // Primero validamos todos los campos
-        $this->validate();
+        // Validation rules differ based on whether we're editing or creating
+        if ($this->editing) {
+            $this->validate([
+                'momentoId' => 'required|exists:momentos,id',
+                'grupoId' => 'required|exists:grupos,id',
+                'campoFormativoId' => 'required|exists:campo_formativos,id',
+                'alumnosEvaluados.*.calificaciones.*.valor' => 'required|numeric|min:0|max:100',
+            ]);
+        } else {
+            $this->validate([
+                'momentoId' => 'required|exists:momentos,id',
+                'grupoId' => 'required|exists:grupos,id',
+            ]);
+        }
 
-        // Validación adicional: verificar que hay al menos un alumno evaluado
-        if (empty($this->alumnosEvaluados)) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Debe agregar al menos un alumno a la evaluación.']);
+        // Generate a concise title
+        $grupo = Grupo::find($this->grupoId);
+        $generatedTitle = "Grupo {$grupo->nombre}";
+
+        $momento = Momento::with([
+            'camposFormativos',
+            'camposFormativos.criterios'
+        ])->find($this->momentoId);
+
+        if (!$momento || $momento->camposFormativos->isEmpty()) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'El momento seleccionado no tiene campos formativos asociados.'
+            ]);
             return;
         }
 
-        // Verificar que todas las calificaciones son numéricas y están entre 0 y 100
-        foreach ($this->alumnosEvaluados as $alumnoIndex => $alumno) {
-            foreach ($alumno['calificaciones'] as $calIndex => $calificacion) {
-                $valor = $calificacion['valor'];
+        $allCamposFormativos = $momento->camposFormativos;
 
-                // Si no es numérico o está fuera de rango, corregirlo
-                if (!is_numeric($valor)) {
-                    $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = 0;
+        // Si estamos editando, actualizar solo la evaluación actual
+        if ($this->editing && $this->evaluacionId) {
+            $evaluacion = Evaluacion::findOrFail($this->evaluacionId);
+
+            $evaluacion->update([
+                'titulo' => $generatedTitle,
+                'campo_formativo_id' => $this->campoFormativoId,
+                'momento_id' => $this->momentoId,
+                'grupo_id' => $this->grupoId,
+                'fecha_evaluacion' => $this->fecha_evaluacion,
+                'is_draft' => false,
+            ]);
+
+            // Procesar los detalles de evaluación para esta evaluación
+            $this->procesarDetalles($evaluacion);
+            $evaluacion->recalcularPromedio();
+        } else {
+            // Cargar todos los alumnos del grupo
+            $alumnos = $grupo->alumnos()->orderBy('apellido_paterno')->get();
+
+            if ($alumnos->isEmpty()) {
+                $this->dispatch('notify', [
+                    'type' => 'warning',
+                    'message' => 'El grupo seleccionado no tiene alumnos asignados.'
+                ]);
+            }
+
+            // Verificar si ya existen evaluaciones para este momento y grupo
+            $existingEvaluaciones = Evaluacion::where('momento_id', $this->momentoId)
+                ->where('grupo_id', $this->grupoId)
+                ->get()
+                ->keyBy('campo_formativo_id');
+
+            $evaluacionesCreadas = 0;
+
+            // Para cada campo formativo del momento, crear o actualizar una evaluación
+            foreach ($allCamposFormativos as $campoFormativo) {
+                // Verificar si ya existe una evaluación para este campo formativo
+                if (isset($existingEvaluaciones[$campoFormativo->id])) {
+                    // Si existe, actualizar
+                    $evaluacion = $existingEvaluaciones[$campoFormativo->id];
+                    $evaluacion->update([
+                        'titulo' => $generatedTitle,
+                        'fecha_evaluacion' => $this->fecha_evaluacion,
+                        'is_draft' => false,
+                    ]);
                 } else {
-                    $valor = (float)$valor;
-                    if ($valor < 0) {
-                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = 0;
-                    } else if ($valor > 100) {
-                        $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$calIndex]['valor'] = 100;
-                    }
+                    // Si no existe, crear
+                    $evaluacion = Evaluacion::create([
+                        'titulo' => $generatedTitle,
+                        'campo_formativo_id' => $campoFormativo->id,
+                        'momento_id' => $this->momentoId,
+                        'grupo_id' => $this->grupoId,
+                        'fecha_evaluacion' => $this->fecha_evaluacion,
+                        'is_draft' => false,
+                    ]);
+                    $evaluacionesCreadas++;
                 }
 
-                // Recalcular el promedio para este alumno
-                $this->calcularPromedio($alumnoIndex);
+                // Si no hay detalles (estudiantes) en esta evaluación, añadirlos automáticamente
+                $detallesCount = $evaluacion->detalles()->count();
+                if ($detallesCount === 0 && $alumnos->isNotEmpty()) {
+                    // Obtener los criterios de este campo formativo
+                    $criterios = $campoFormativo->criterios;
+
+                    // Crear detalles de evaluación para cada alumno
+                    foreach ($alumnos as $alumno) {
+                        $detalle = EvaluacionDetalle::create([
+                            'evaluacion_id' => $evaluacion->id,
+                            'alumno_id' => $alumno->id,
+                            'promedio_final' => 0,
+                            'observaciones' => '',
+                        ]);
+
+                        // Preparar datos de criterios (inicialmente con calificación 0)
+                        $criteriosData = [];
+                        foreach ($criterios as $criterio) {
+                            $criteriosData[$criterio->id] = [
+                                'calificacion' => 0,
+                                'calificacion_ponderada' => 0,
+                            ];
+                        }
+
+                        // Asociar criterios al detalle
+                        $detalle->criterios()->sync($criteriosData);
+                    }
+                }
             }
+
+            $mensaje = $evaluacionesCreadas > 0
+                ? "Se han creado $evaluacionesCreadas evaluaciones para todos los campos formativos del momento seleccionado."
+                : "Las evaluaciones ya existían y han sido actualizadas.";
+
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => $mensaje
+            ]);
         }
 
-        // Continuar con el proceso de guardado
-        try {
-            // Guardar todo
-            $this->autosave();
+        return redirect()->route('evaluaciones.index');
+    }
 
-            // Marcar como finalizada
-            $evaluacion = Evaluacion::find($this->evaluacionId);
-            $evaluacion->is_draft = false;
-            $evaluacion->save();
+    protected function procesarDetalles($evaluacion)
+    {
+        // Procesar los detalles de evaluación
+        foreach ($this->alumnosEvaluados as $alumnoEvaluado) {
+            $detalleId = $alumnoEvaluado['detalle_id'] ?? null;
+            $alumnoId = $alumnoEvaluado['alumno_id'];
+            $promedio = $alumnoEvaluado['promedio'];
+            $observaciones = $alumnoEvaluado['observaciones'] ?? '';
 
-            return redirect()->route('evaluaciones.index')
-                ->with('success', 'Evaluación finalizada correctamente.');
-        } catch (\Exception $e) {
-            // Capturar cualquier excepción inesperada
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Error al finalizar la evaluación: ' . $e->getMessage()]);
+            // Crear o actualizar el detalle
+            $detalle = EvaluacionDetalle::updateOrCreate(
+                [
+                    'id' => $detalleId,
+                    'evaluacion_id' => $evaluacion->id,
+                    'alumno_id' => $alumnoId,
+                ],
+                [
+                    'promedio_final' => $promedio,
+                    'observaciones' => $observaciones,
+                ]
+            );
+
+            // Sincronizar los criterios y calificaciones
+            $criteriosData = [];
+            foreach ($alumnoEvaluado['calificaciones'] as $calificacion) {
+                // Asegurarse de que el valor sea numérico antes de guardarlo
+                $valor = $calificacion['valor'];
+                if ($valor === '' || $valor === null) {
+                    $valor = 0;
+                } else if (!is_numeric($valor)) {
+                    $valor = preg_replace('/[^\d]/', '', $valor);
+                    $valor = empty($valor) ? 0 : (int)$valor;
+                } else {
+                    $valor = (int)$valor;
+                    if ($valor < 0) $valor = 0;
+                    if ($valor > 100) $valor = 100;
+                }
+
+                $criteriosData[$calificacion['criterio_id']] = [
+                    'calificacion' => $valor,
+                    'calificacion_ponderada' => (float)$calificacion['ponderada'],
+                ];
+            }
+
+            $detalle->criterios()->sync($criteriosData);
         }
     }
 
     public function render()
     {
+        $grupos = Grupo::orderBy('nombre')->get();
+        $momentos = Momento::with('camposFormativos')
+                          ->where('fecha', '<=', now())
+                          ->orderBy('fecha', 'desc')
+                          ->get();
+
+        // Solo cargar criterios si está en modo edición
+        $showCriterios = $this->editing && !empty($this->criterios);
+
+        // Siempre mostrar la sección de alumnos en modo edición
+        $showAlumnos = $this->editing;
+
+        // Si estamos editando y no hay alumnos cargados pero tenemos grupo y campo formativo, cargar alumnos
+        if ($this->editing && empty($this->alumnosEvaluados) && $this->grupoId && $this->campoFormativoId) {
+            $this->cargarAlumnosGrupo();
+        }
+
         return view('livewire.evaluacion.form', [
-            'camposFormativos' => CampoFormativo::all(),
-            'grupos' => Grupo::all(),
-            'alumnos' => $this->grupoId
-                ? Alumno::where('grupo_id', $this->grupoId)->where('estado', 'activo')->get()
-                : collect(),
+            'grupos' => $grupos,
+            'momentos' => $momentos,
+            'showCriterios' => $showCriterios,
+            'showAlumnos' => $showAlumnos,
         ]);
     }
 }

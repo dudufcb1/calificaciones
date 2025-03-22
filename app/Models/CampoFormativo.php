@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class CampoFormativo extends Model
 {
@@ -38,5 +39,10 @@ class CampoFormativo extends Model
     public function criterios()
     {
         return $this->hasMany(Criterio::class);
+    }
+
+    public function momentos(): BelongsToMany
+    {
+        return $this->belongsToMany(Momento::class, 'momento_campo_formativo');
     }
 }

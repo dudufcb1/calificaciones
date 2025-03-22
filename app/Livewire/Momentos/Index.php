@@ -4,6 +4,7 @@ namespace App\Livewire\Momentos;
 
 use App\Models\Ciclo;
 use App\Models\Momento;
+use App\Models\CampoFormativo;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -24,6 +25,9 @@ class Index extends Component
     public $search = '';
     public $ciclo_filter = '';
     public $rangoFechas = false;
+    public $camposFormativos = [];
+    public $selectedCamposFormativos = [];
+    public $isCamposFormativosOpen = false;
 
     public function mount()
     {
@@ -35,6 +39,14 @@ class Index extends Component
         if ($cicloActivo) {
             $this->ciclo_id = $cicloActivo->id;
         }
+
+        // Cargar todos los campos formativos disponibles
+        $this->loadCamposFormativos();
+    }
+
+    public function loadCamposFormativos()
+    {
+        $this->camposFormativos = CampoFormativo::orderBy('nombre')->get()->toArray();
     }
 
     public function create()
@@ -53,6 +65,16 @@ class Index extends Component
         $this->isOpen = false;
     }
 
+    public function openCamposFormativosModal()
+    {
+        $this->isCamposFormativosOpen = true;
+    }
+
+    public function closeCamposFormativosModal()
+    {
+        $this->isCamposFormativosOpen = false;
+    }
+
     public function resetInputFields()
     {
         $this->momento_id = null;
@@ -61,6 +83,7 @@ class Index extends Component
         $this->fecha_inicio = null;
         $this->fecha_fin = null;
         $this->rangoFechas = false;
+        $this->selectedCamposFormativos = [];
 
         // Mantener el ciclo activo si existe
         $cicloActivo = Ciclo::where('activo', true)->first();
@@ -113,7 +136,10 @@ class Index extends Component
             $data['fecha_fin'] = null;
         }
 
-        Momento::updateOrCreate(['id' => $this->momento_id], $data);
+        $momento = Momento::updateOrCreate(['id' => $this->momento_id], $data);
+
+        // Sincronizar los campos formativos seleccionados
+        $momento->camposFormativos()->sync($this->selectedCamposFormativos);
 
         $this->dispatch('notify', [
             'type' => 'success',
@@ -126,7 +152,7 @@ class Index extends Component
 
     public function edit($id)
     {
-        $momento = Momento::findOrFail($id);
+        $momento = Momento::with('camposFormativos')->findOrFail($id);
         $this->momento_id = $momento->id;
         $this->nombre = $momento->nombre;
         $this->fecha = $momento->fecha->format('Y-m-d');
@@ -141,6 +167,9 @@ class Index extends Component
             $this->fecha_inicio = null;
             $this->fecha_fin = null;
         }
+
+        // Cargar los campos formativos seleccionados
+        $this->selectedCamposFormativos = $momento->camposFormativos->pluck('id')->toArray();
 
         $this->openModal();
     }
@@ -171,9 +200,18 @@ class Index extends Component
         $this->momento_id = null;
     }
 
+    public function toggleCampoFormativo($id)
+    {
+        if (in_array($id, $this->selectedCamposFormativos)) {
+            $this->selectedCamposFormativos = array_diff($this->selectedCamposFormativos, [$id]);
+        } else {
+            $this->selectedCamposFormativos[] = $id;
+        }
+    }
+
     public function render()
     {
-        $query = Momento::with('ciclo')
+        $query = Momento::with(['ciclo', 'camposFormativos'])
             ->when($this->search, function ($q) {
                 return $q->where('nombre', 'like', '%' . $this->search . '%');
             })
