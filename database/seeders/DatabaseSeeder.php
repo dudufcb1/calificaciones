@@ -7,6 +7,7 @@ use App\Models\Grupo;
 use App\Models\Alumno;
 use App\Models\CampoFormativo;
 use App\Models\Criterio;
+use App\Models\Ciclo;
 use Illuminate\Support\Facades\Hash;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -49,12 +50,14 @@ class DatabaseSeeder extends Seeder
             // Crear grupos
             $grupo1 = Grupo::create([
                 'nombre' => 'Grupo A',
-                'descripcion' => 'Primer grado grupo A'
+                'descripcion' => 'Primer grado grupo A',
+                'user_id' => $user->id
             ]);
 
             $grupo2 = Grupo::create([
                 'nombre' => 'Grupo B',
-                'descripcion' => 'Primer grado grupo B'
+                'descripcion' => 'Primer grado grupo B',
+                'user_id' => $user->id
             ]);
 
             // Crear alumnos
@@ -63,7 +66,8 @@ class DatabaseSeeder extends Seeder
                 'apellido_paterno' => 'Pérez',
                 'apellido_materno' => 'García',
                 'grupo_id' => $grupo1->id,
-                'estado' => 'activo'
+                'estado' => 'activo',
+                'user_id' => $user->id
             ]);
 
             Alumno::create([
@@ -71,7 +75,8 @@ class DatabaseSeeder extends Seeder
                 'apellido_paterno' => 'González',
                 'apellido_materno' => 'López',
                 'grupo_id' => $grupo1->id,
-                'estado' => 'activo'
+                'estado' => 'activo',
+                'user_id' => $user->id
             ]);
 
             Alumno::create([
@@ -79,7 +84,8 @@ class DatabaseSeeder extends Seeder
                 'apellido_paterno' => 'Ramírez',
                 'apellido_materno' => 'Sánchez',
                 'grupo_id' => $grupo2->id,
-                'estado' => 'activo'
+                'estado' => 'activo',
+                'user_id' => $user->id
             ]);
         }
 
@@ -88,12 +94,14 @@ class DatabaseSeeder extends Seeder
             // Crear campos formativos
             $campo1 = CampoFormativo::create([
                 'nombre' => 'Lenguaje y Comunicación',
-                'descripcion' => 'Desarrollo de habilidades comunicativas'
+                'descripcion' => 'Desarrollo de habilidades comunicativas',
+                'user_id' => $user->id
             ]);
 
             $campo2 = CampoFormativo::create([
                 'nombre' => 'Pensamiento Matemático',
-                'descripcion' => 'Desarrollo de habilidades lógico-matemáticas'
+                'descripcion' => 'Desarrollo de habilidades lógico-matemáticas',
+                'user_id' => $user->id
             ]);
 
             // Crear criterios de evaluación
@@ -102,7 +110,8 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Expresión oral',
                 'descripcion' => 'Capacidad para expresar ideas verbalmente',
                 'porcentaje' => 30,
-                'orden' => 1
+                'orden' => 1,
+                'user_id' => $user->id
             ]);
 
             Criterio::create([
@@ -110,7 +119,8 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Comprensión lectora',
                 'descripcion' => 'Capacidad para entender textos escritos',
                 'porcentaje' => 40,
-                'orden' => 2
+                'orden' => 2,
+                'user_id' => $user->id
             ]);
 
             Criterio::create([
@@ -118,7 +128,8 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Producción escrita',
                 'descripcion' => 'Capacidad para redactar textos',
                 'porcentaje' => 30,
-                'orden' => 3
+                'orden' => 3,
+                'user_id' => $user->id
             ]);
 
             Criterio::create([
@@ -126,7 +137,8 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Resolución de problemas',
                 'descripcion' => 'Capacidad para solucionar problemas matemáticos',
                 'porcentaje' => 50,
-                'orden' => 1
+                'orden' => 1,
+                'user_id' => $user->id
             ]);
 
             Criterio::create([
@@ -134,7 +146,19 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Razonamiento lógico',
                 'descripcion' => 'Capacidad de análisis y deducción',
                 'porcentaje' => 50,
-                'orden' => 2
+                'orden' => 2,
+                'user_id' => $user->id
+            ]);
+        }
+
+        // Crear ciclo escolar si no existe ninguno
+        if (Ciclo::count() === 0) {
+            $ciclo = Ciclo::create([
+                'nombre' => 'Ciclo 2023-2024',
+                'anio_inicio' => 2023,
+                'anio_fin' => 2024,
+                'activo' => true,
+                'user_id' => $user->id
             ]);
         }
     }

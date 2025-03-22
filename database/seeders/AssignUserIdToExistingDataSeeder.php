@@ -10,6 +10,8 @@ use App\Models\Grupo;
 use App\Models\CampoFormativo;
 use App\Models\Criterio;
 use App\Models\Evaluacion;
+use App\Models\Ciclo;
+use App\Models\Momento;
 use Illuminate\Support\Facades\DB;
 
 class AssignUserIdToExistingDataSeeder extends Seeder
@@ -25,8 +27,10 @@ class AssignUserIdToExistingDataSeeder extends Seeder
         $camposFormativosSinUsuario = CampoFormativo::whereNull('user_id')->count();
         $criteriosSinUsuario = Criterio::whereNull('user_id')->count();
         $evaluacionesSinUsuario = Evaluacion::whereNull('user_id')->count();
+        $ciclosSinUsuario = Ciclo::whereNull('user_id')->count();
+        $momentosSinUsuario = Momento::whereNull('user_id')->count();
 
-        $total = $alumnosSinUsuario + $gruposSinUsuario + $camposFormativosSinUsuario + $criteriosSinUsuario + $evaluacionesSinUsuario;
+        $total = $alumnosSinUsuario + $gruposSinUsuario + $camposFormativosSinUsuario + $criteriosSinUsuario + $evaluacionesSinUsuario + $ciclosSinUsuario + $momentosSinUsuario;
 
         if ($total === 0) {
             $this->command->info('No hay datos que requieran actualización de user_id');
@@ -70,6 +74,16 @@ class AssignUserIdToExistingDataSeeder extends Seeder
         if ($evaluacionesSinUsuario > 0) {
             Evaluacion::whereNull('user_id')->update(['user_id' => $userId]);
             $this->command->info("Se actualizaron {$evaluacionesSinUsuario} evaluaciones");
+        }
+
+        if ($ciclosSinUsuario > 0) {
+            Ciclo::whereNull('user_id')->update(['user_id' => $userId]);
+            $this->command->info("Se actualizaron {$ciclosSinUsuario} ciclos");
+        }
+
+        if ($momentosSinUsuario > 0) {
+            Momento::whereNull('user_id')->update(['user_id' => $userId]);
+            $this->command->info("Se actualizaron {$momentosSinUsuario} momentos");
         }
 
         $this->command->info('Se ha completado la asignación de user_id a todos los datos existentes');

@@ -8,11 +8,13 @@ use App\Models\CampoFormativo;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
+use App\Traits\WithResourceVerification;
 
 #[Layout('layouts.app')]
 class Index extends Component
 {
     use WithPagination;
+    use WithResourceVerification;
 
     public $momento_id;
     public $nombre;
@@ -224,7 +226,8 @@ class Index extends Component
 
         $momentos = $query->paginate(10);
         $ciclos = Ciclo::where('user_id', auth()->id())->orderBy('anio_inicio', 'desc')->get();
+        $resourceContext = $this->getResourceContext();
 
-        return view('livewire.momentos.index', compact('momentos', 'ciclos'));
+        return view('livewire.momentos.index', compact('momentos', 'ciclos', 'resourceContext'));
     }
 }

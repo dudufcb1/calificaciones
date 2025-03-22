@@ -7,6 +7,8 @@
         </a>
     </div>
 
+    @livewire('components.resource-verifier', ['context' => $resourceContext])
+
     <div class="mb-4">
         <input type="text" wire:model.live="search" placeholder="Buscar alumnos..."
                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200">

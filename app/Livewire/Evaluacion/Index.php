@@ -10,11 +10,13 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Illuminate\Support\Facades\Log;
+use App\Traits\WithResourceVerification;
 
 #[Layout('layouts.app')]
 class Index extends Component
 {
     use WithPagination;
+    use WithResourceVerification;
 
     public $search = '';
     public $campoFormativoFilter = '';
@@ -663,10 +665,15 @@ class Index extends Component
         $camposFormativos = CampoFormativo::orderBy('nombre')->get();
         $momentos = \App\Models\Momento::orderBy('fecha', 'desc')->get();
 
+        // Añadir el contexto del recurso
+        $resourceContext = $this->getResourceContext();
+
+        // Devolver la vista con los datos, incluido el contexto del recurso
         return view('livewire.evaluacion.index', [
             'evaluaciones' => $evaluaciones,
             'camposFormativos' => $camposFormativos,
             'momentos' => $momentos,
+            'resourceContext' => $resourceContext
         ]);
     }
 }

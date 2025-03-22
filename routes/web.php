@@ -17,10 +17,11 @@ use App\Livewire\Asistencia\Reporte as AsistenciaReporte;
 use App\Livewire\Asistencia\AsistenciaMensual;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvaluacionController;
+use App\Livewire\Dashboard;
 
 Route::view('/', 'welcome');
 
-Route::get('dashboard', [DashboardController::class, 'index'])
+Route::get('dashboard', Dashboard::class)
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
