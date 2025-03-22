@@ -11,10 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Primero eliminamos la tabla
+        // Primero eliminamos las tablas que tienen claves foráneas a evaluaciones
+        Schema::table('evaluacion_criterio', function (Blueprint $table) {
+            $table->dropForeign(['evaluacion_id']);
+        });
+
+        // Luego eliminamos la tabla evaluaciones
         Schema::dropIfExists('evaluaciones');
 
-        // Luego la recreamos con las relaciones correctas
+        // Recreamos la tabla con las relaciones correctas
         Schema::create('evaluaciones', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('campo_formativo_id');
@@ -33,6 +38,14 @@ return new class extends Migration
             $table->foreign('alumno_id')
                   ->references('id')
                   ->on('alumnos')
+                  ->onDelete('cascade');
+        });
+
+        // Volvemos a crear las claves foráneas en evaluacion_criterio
+        Schema::table('evaluacion_criterio', function (Blueprint $table) {
+            $table->foreign('evaluacion_id')
+                  ->references('id')
+                  ->on('evaluaciones')
                   ->onDelete('cascade');
         });
     }

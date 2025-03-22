@@ -11,11 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasColumn('asistencias', 'estado')) {
-            Schema::table('asistencias', function (Blueprint $table) {
-                $table->enum('estado', ['asistio', 'falta', 'justificada'])->default('asistio');
-            });
-        }
+        Schema::table('users', function (Blueprint $table) {
+            $table->json('benefits')->nullable()->after('trial');
+        });
     }
 
     /**
@@ -23,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // No eliminamos el campo ya que es parte de la estructura principal
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('benefits');
+        });
     }
 };

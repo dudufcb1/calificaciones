@@ -17,10 +17,11 @@ return new class extends Migration
             $table->foreignId('criterio_id')->constrained('criterios')->onDelete('cascade');
             $table->decimal('calificacion', 5, 2);
             $table->decimal('calificacion_ponderada', 5, 2);
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
-            // Índice único para evitar duplicados de criterios en el mismo detalle
-            $table->unique(['evaluacion_detalle_id', 'criterio_id']);
+            // Índice único para evitar duplicados de criterios en el mismo detalle con nombre corto
+            $table->unique(['evaluacion_detalle_id', 'criterio_id'], 'edc_detalle_criterio_unique');
         });
     }
 

@@ -37,7 +37,7 @@ class Evaluacion extends Model
     {
         static::addGlobalScope('user', function ($query) {
             if (auth()->check()) {
-                $query->where('user_id', auth()->id());
+                $query->where('evaluaciones.user_id', auth()->id());
             }
         });
 

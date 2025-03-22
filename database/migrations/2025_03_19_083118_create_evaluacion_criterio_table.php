@@ -13,10 +13,11 @@ return new class extends Migration
     {
         Schema::create('evaluacion_criterio', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('evaluacion_id')->constrained()->onDelete('cascade');
+            $table->foreignId('evaluacion_id')->constrained('evaluaciones')->onDelete('cascade');
             $table->foreignId('criterio_id')->constrained('criterios')->onDelete('cascade');
             $table->decimal('calificacion', 5, 2)->default(0);
             $table->decimal('calificacion_ponderada', 5, 2)->default(0);
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }

@@ -33,6 +33,7 @@ class User extends Authenticatable
         'is_confirmed',
         'trial',
         'phone_number',
+        'benefits',
     ];
 
     /**
@@ -57,6 +58,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_confirmed' => 'boolean',
             'trial' => 'boolean',
+            'benefits' => 'array',
         ];
     }
 
@@ -114,5 +116,13 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    /**
+     * Check if the user has SMS notifications service
+     */
+    public function hasSmsService(): bool
+    {
+        return isset($this->benefits['sms_notifications']) && $this->benefits['sms_notifications'] === true;
     }
 }

@@ -252,6 +252,24 @@
                                                 Usuario en modo Trial
                                             </label>
                                         </div>
+
+                                        <div class="mt-6">
+                                            <h4 class="font-medium text-gray-900 mb-2">Servicios contratados</h4>
+                                            <div class="space-y-2 border rounded-md p-3 bg-gray-50">
+                                                <div class="flex items-center">
+                                                    <input type="checkbox"
+                                                        id="sms_notifications"
+                                                        wire:model.blur="userData.benefits.sms_notifications"
+                                                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                                    <label for="sms_notifications" class="ml-2 block text-sm font-medium text-gray-700">
+                                                        Servicio de notificaciones SMS
+                                                    </label>
+                                                </div>
+                                                <p class="text-xs text-gray-500 mt-1">
+                                                    Permite enviar SMS automáticos a padres/tutores cuando los alumnos faltan a clase.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

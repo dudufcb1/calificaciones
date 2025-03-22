@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('alumno_id')->constrained('alumnos')->onDelete('cascade');
             $table->decimal('promedio_final', 5, 2)->default(0);
             $table->text('observaciones')->nullable();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             // Índice único para evitar duplicados del mismo alumno en la misma evaluación

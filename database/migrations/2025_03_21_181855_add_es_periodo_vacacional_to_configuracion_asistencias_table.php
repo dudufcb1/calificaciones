@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('configuracion_asistencias', function (Blueprint $table) {
-            $table->boolean('es_periodo_vacacional')->default(false);
-        });
+        if (!Schema::hasColumn('configuracion_asistencias', 'es_periodo_vacacional')) {
+            Schema::table('configuracion_asistencias', function (Blueprint $table) {
+                $table->boolean('es_periodo_vacacional')->default(false);
+            });
+        }
     }
 
     /**
@@ -21,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('configuracion_asistencias', function (Blueprint $table) {
-            $table->dropColumn('es_periodo_vacacional');
-        });
+        // No eliminamos el campo ya que es parte de la estructura principal
     }
 };

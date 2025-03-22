@@ -21,10 +21,10 @@ class Alumno extends Model
         'fecha_nacimiento',
         'genero',
         'tutor_nombre',
-        'tutor_telefono',
         'tutor_email',
         'direccion',
         'telefono_emergencia',
+        'telefono_tutor',
         'alergias',
         'observaciones',
     ];
@@ -37,7 +37,7 @@ class Alumno extends Model
     {
         static::addGlobalScope('user', function ($query) {
             if (auth()->check()) {
-                $query->where('user_id', auth()->id());
+                $query->where('alumnos.user_id', auth()->id());
             }
         });
 

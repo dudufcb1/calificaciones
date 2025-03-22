@@ -26,6 +26,9 @@ class Index extends Component
         'trial' => true,
         'status' => 'active',
         'role' => 'user',
+        'benefits' => [
+            'sms_notifications' => false,
+        ],
     ];
 
     protected $rules = [
@@ -35,6 +38,7 @@ class Index extends Component
         'userData.trial' => 'boolean',
         'userData.status' => 'required|in:active,inactive,pending',
         'userData.role' => 'required|in:user,admin',
+        'userData.benefits.sms_notifications' => 'boolean',
     ];
 
     public function render()
@@ -130,6 +134,8 @@ class Index extends Component
         $this->userId = $id;
         $user = User::findOrFail($id);
 
+        $userBenefits = $user->benefits ?? ['sms_notifications' => false];
+
         $this->userData = [
             'name' => $user->name,
             'email' => $user->email,
@@ -137,6 +143,7 @@ class Index extends Component
             'trial' => $user->trial,
             'status' => $user->status,
             'role' => $user->role,
+            'benefits' => $userBenefits,
         ];
 
         $this->showEditModal = true;
@@ -154,6 +161,7 @@ class Index extends Component
             'trial' => $this->userData['trial'],
             'status' => $this->userData['status'],
             'role' => $this->userData['role'],
+            'benefits' => $this->userData['benefits'],
         ]);
 
         $this->showEditModal = false;

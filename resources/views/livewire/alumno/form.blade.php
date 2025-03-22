@@ -102,10 +102,11 @@
                             </div>
 
                             <div class="col-span-6 sm:col-span-2">
-                                <label for="tutor_telefono" class="block text-sm font-medium text-gray-700">Teléfono del Tutor</label>
-                                <input type="text" wire:model="tutor_telefono" id="tutor_telefono"
+                                <label for="telefono_tutor" class="block text-sm font-medium text-gray-700">Teléfono del Tutor</label>
+                                <input type="text" wire:model="telefono_tutor" id="telefono_tutor"
                                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
-                                @error('tutor_telefono') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                <span class="text-xs text-gray-500">Este número se utilizará para enviar notificaciones SMS cuando el alumno falte a clases.</span>
+                                @error('telefono_tutor') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="col-span-6 sm:col-span-2">

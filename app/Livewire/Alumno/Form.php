@@ -20,7 +20,7 @@ class Form extends Component
     public $fecha_nacimiento;
     public $genero;
     public $tutor_nombre;
-    public $tutor_telefono;
+    public $telefono_tutor;
     public $tutor_email;
     public $direccion;
     public $telefono_emergencia;
@@ -38,7 +38,7 @@ class Form extends Component
         'fecha_nacimiento' => 'nullable|date',
         'genero' => 'nullable|in:masculino,femenino,otro',
         'tutor_nombre' => 'nullable|string|max:255',
-        'tutor_telefono' => 'nullable|string|max:20',
+        'telefono_tutor' => 'nullable|string|max:20',
         'tutor_email' => 'nullable|email|max:255',
         'direccion' => 'nullable|string',
         'telefono_emergencia' => 'nullable|string|max:20',
@@ -61,7 +61,7 @@ class Form extends Component
             $this->fecha_nacimiento = $alumno->fecha_nacimiento;
             $this->genero = $alumno->genero;
             $this->tutor_nombre = $alumno->tutor_nombre;
-            $this->tutor_telefono = $alumno->tutor_telefono;
+            $this->telefono_tutor = $alumno->telefono_tutor;
             $this->tutor_email = $alumno->tutor_email;
             $this->direccion = $alumno->direccion;
             $this->telefono_emergencia = $alumno->telefono_emergencia;
@@ -86,7 +86,7 @@ class Form extends Component
                 'fecha_nacimiento' => $this->fecha_nacimiento,
                 'genero' => $this->genero,
                 'tutor_nombre' => $this->tutor_nombre,
-                'tutor_telefono' => $this->tutor_telefono,
+                'telefono_tutor' => $this->telefono_tutor,
                 'tutor_email' => $this->tutor_email,
                 'direccion' => $this->direccion,
                 'telefono_emergencia' => $this->telefono_emergencia,
@@ -105,7 +105,7 @@ class Form extends Component
                 'fecha_nacimiento' => $this->fecha_nacimiento,
                 'genero' => $this->genero,
                 'tutor_nombre' => $this->tutor_nombre,
-                'tutor_telefono' => $this->tutor_telefono,
+                'telefono_tutor' => $this->telefono_tutor,
                 'tutor_email' => $this->tutor_email,
                 'direccion' => $this->direccion,
                 'telefono_emergencia' => $this->telefono_emergencia,

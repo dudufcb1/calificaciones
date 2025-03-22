@@ -15,6 +15,7 @@ use App\Livewire\Asistencia\Configuracion as AsistenciaConfiguracion;
 use App\Livewire\Asistencia\PasarLista as AsistenciaPasarLista;
 use App\Livewire\Asistencia\Reporte as AsistenciaReporte;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EvaluacionController;
 
 Route::view('/', 'welcome');
 
@@ -47,6 +48,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/evaluaciones/create', EvaluacionForm::class)->name('evaluaciones.create');
         Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
         Route::get('/evaluaciones/{evaluacionId}/show', \App\Livewire\Evaluacion\Show::class)->name('evaluaciones.show');
+        Route::get('/evaluaciones/{evaluacionId}/excel', [EvaluacionController::class, 'exportarExcel'])->name('evaluaciones.excel');
 
         // Rutas de Grupo
         Route::get('/grupos', GrupoIndex::class)->name('grupos.index');

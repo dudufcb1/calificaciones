@@ -11,40 +11,36 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Añadir user_id a la tabla alumnos
-        Schema::table('alumnos', function (Blueprint $table) {
-            $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
-        });
+        // Añadir user_id a la tabla grupos si no existe
+        if (!Schema::hasColumn('grupos', 'user_id')) {
+            Schema::table('grupos', function (Blueprint $table) {
+                $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
+            });
+        }
 
-        // Añadir user_id a la tabla grupos
-        Schema::table('grupos', function (Blueprint $table) {
-            $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
-        });
+        // Añadir user_id a la tabla campo_formativos si no existe
+        if (!Schema::hasColumn('campo_formativos', 'user_id')) {
+            Schema::table('campo_formativos', function (Blueprint $table) {
+                $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
+            });
+        }
 
-        // Añadir user_id a la tabla campo_formativos
-        Schema::table('campo_formativos', function (Blueprint $table) {
-            $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
-        });
-
-        // Añadir user_id a la tabla evaluaciones
-        Schema::table('evaluaciones', function (Blueprint $table) {
-            $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
-        });
-
-        // Añadir user_id a la tabla criterios
-        Schema::table('criterios', function (Blueprint $table) {
-            $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
-        });
+        // Añadir user_id a la tabla criterios si no existe
+        if (!Schema::hasColumn('criterios', 'user_id')) {
+            Schema::table('criterios', function (Blueprint $table) {
+                $table->foreignId('user_id')->nullable()->constrained()->after('id')->onDelete('cascade');
+            });
+        }
 
         // Actualizar registros existentes con el primer usuario disponible (si existe)
         if (Schema::hasTable('users') && \DB::table('users')->count() > 0) {
             $userId = \DB::table('users')->first()->id;
 
-            \DB::table('alumnos')->update(['user_id' => $userId]);
-            \DB::table('grupos')->update(['user_id' => $userId]);
-            \DB::table('campo_formativos')->update(['user_id' => $userId]);
-            \DB::table('evaluaciones')->update(['user_id' => $userId]);
-            \DB::table('criterios')->update(['user_id' => $userId]);
+            \DB::table('grupos')->whereNull('user_id')->update(['user_id' => $userId]);
+            \DB::table('campo_formativos')->whereNull('user_id')->update(['user_id' => $userId]);
+            \DB::table('criterios')->whereNull('user_id')->update(['user_id' => $userId]);
+            \DB::table('alumnos')->whereNull('user_id')->update(['user_id' => $userId]);
+            \DB::table('evaluaciones')->whereNull('user_id')->update(['user_id' => $userId]);
         }
     }
 
@@ -53,34 +49,30 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Eliminar user_id de la tabla alumnos
-        Schema::table('alumnos', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-        });
+        // Nada que revertir para alumnos y evaluaciones ya que tienen user_id en sus migraciones principales
 
-        // Eliminar user_id de la tabla grupos
-        Schema::table('grupos', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-        });
+        // Eliminar user_id de la tabla grupos si existe
+        if (Schema::hasColumn('grupos', 'user_id')) {
+            Schema::table('grupos', function (Blueprint $table) {
+                $table->dropForeign(['user_id']);
+                $table->dropColumn('user_id');
+            });
+        }
 
-        // Eliminar user_id de la tabla campo_formativos
-        Schema::table('campo_formativos', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-        });
+        // Eliminar user_id de la tabla campo_formativos si existe
+        if (Schema::hasColumn('campo_formativos', 'user_id')) {
+            Schema::table('campo_formativos', function (Blueprint $table) {
+                $table->dropForeign(['user_id']);
+                $table->dropColumn('user_id');
+            });
+        }
 
-        // Eliminar user_id de la tabla evaluaciones
-        Schema::table('evaluaciones', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-        });
-
-        // Eliminar user_id de la tabla criterios
-        Schema::table('criterios', function (Blueprint $table) {
-            $table->dropForeign(['user_id']);
-            $table->dropColumn('user_id');
-        });
+        // Eliminar user_id de la tabla criterios si existe
+        if (Schema::hasColumn('criterios', 'user_id')) {
+            Schema::table('criterios', function (Blueprint $table) {
+                $table->dropForeign(['user_id']);
+                $table->dropColumn('user_id');
+            });
+        }
     }
 };

@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('evaluaciones', function (Blueprint $table) {
-            $table->string('momento')->nullable()->after('fecha_evaluacion');
-        });
+        if (!Schema::hasColumn('evaluaciones', 'momento')) {
+            Schema::table('evaluaciones', function (Blueprint $table) {
+                $table->string('momento')->nullable()->after('fecha_evaluacion');
+            });
+        }
     }
 
     /**
@@ -21,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('evaluaciones', function (Blueprint $table) {
-            $table->dropColumn('momento');
-        });
+        // No eliminamos el campo ya que es parte de la estructura principal
     }
 };

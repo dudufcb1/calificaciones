@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('asistencias', function (Blueprint $table) {
-            $table->text('observaciones')->nullable();
-        });
+        if (!Schema::hasColumn('asistencias', 'observaciones')) {
+            Schema::table('asistencias', function (Blueprint $table) {
+                $table->text('observaciones')->nullable();
+            });
+        }
     }
 
     /**
@@ -21,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('asistencias', function (Blueprint $table) {
-            $table->dropColumn('observaciones');
-        });
+        // No eliminamos el campo ya que es parte de la estructura principal
     }
 };

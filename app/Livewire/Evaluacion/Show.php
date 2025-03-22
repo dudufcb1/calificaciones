@@ -99,42 +99,111 @@ class Show extends Component
 
     public function exportarExcel()
     {
-        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
-        $currentUser = auth()->user();
+        // Verificar que se está ejecutando el método
+        \Log::info('====== MÉTODO exportarExcel INICIADO ======');
+        \Log::info('Evaluación ID: ' . $this->evaluacionId . ' - Timestamp: ' . now()->toDateTimeString());
 
-        // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
-        $nombreDocente = $currentUser->name;
-        if ($evaluacion->user) {
-            $nombreDocente = $evaluacion->user->name;
+        try {
+            // Notificar usuario para depuración visual
+            $this->dispatch('notify', [
+                'type' => 'info',
+                'message' => 'Iniciando exportación a Excel...'
+            ]);
+
+            $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+            $currentUser = auth()->user();
+
+            // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
+            $nombreDocente = $currentUser->name;
+            if ($evaluacion->user) {
+                $nombreDocente = $evaluacion->user->name;
+            }
+
+            \Log::info('Docente: ' . $nombreDocente . ' - Cantidad de detalles: ' . count($evaluacion->detalles));
+
+            // Verificar si estamos en modo trial y si hay más de 10 registros
+            $trialMode = env('APP_TRIAL_MODE', true);
+            $needsConfirmation = $trialMode && count($evaluacion->detalles) > 10;
+
+            \Log::info('Modo trial: ' . ($trialMode ? 'Activo' : 'Inactivo') .
+                      ' - Requiere confirmación: ' . ($needsConfirmation ? 'Sí' : 'No'));
+
+            if ($needsConfirmation) {
+                // Más de 10 registros en modo trial, mostrar diálogo de confirmación
+                \Log::info('Intentando mostrar diálogo de confirmación para trial - ' . now()->toDateTimeString());
+
+                // Despachar el evento para el diálogo de SweetAlert
+                $this->dispatch('trial-excel-export');
+                \Log::info('Evento trial-excel-export despachado correctamente');
+
+                // Notificación visual adicional para depuración
+                $this->dispatch('notify', [
+                    'type' => 'info',
+                    'message' => 'Por favor confirma la exportación limitada...'
+                ]);
+
+                return null; // Detener ejecución y esperar la confirmación del usuario
+            }
+
+            // Si no estamos en modo trial o hay 10 o menos registros, exportar directamente
+            \Log::info('Ejecutando exportación Excel directamente (sin diálogo) - ' . now()->toDateTimeString());
+
+            // En modo trial limitamos a 10 registros, en modo normal exportamos todos
+            $limitarRegistros = $trialMode;
+
+            return $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, $limitarRegistros);
+
+        } catch (\Exception $e) {
+            \Log::error('Error en exportarExcel: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al exportar: ' . $e->getMessage()
+            ]);
+
+            return null;
         }
-
-        \Log::info('Exportando evaluación. Docente: ' . $nombreDocente);
-
-        // Comprobar si el usuario está en modo trial
-        if ($currentUser->trial) {
-            // En lugar de exportar directamente, mostrar alerta de confirmación
-            $this->dispatch('trial-excel-export');
-            return;
-        }
-
-        // Si no está en modo trial, exportar normalmente
-        $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, false);
     }
 
     #[On('confirmarExportarExcel')]
     public function confirmarExportarExcel()
     {
-        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
-        $currentUser = auth()->user();
+        \Log::info('====== MÉTODO confirmarExportarExcel INICIADO ======');
+        \Log::info('Evaluación ID: ' . $this->evaluacionId . ' - Timestamp: ' . now()->toDateTimeString());
 
-        // Obtener el nombre del docente
-        $nombreDocente = $currentUser->name;
-        if ($evaluacion->user) {
-            $nombreDocente = $evaluacion->user->name;
+        try {
+            // Notificar que se recibió la confirmación
+            $this->dispatch('notify', [
+                'type' => 'info',
+                'message' => 'Procesando solicitud confirmada...'
+            ]);
+
+            $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+            $currentUser = auth()->user();
+
+            // Obtener el nombre del docente
+            $nombreDocente = $currentUser->name;
+            if ($evaluacion->user) {
+                $nombreDocente = $evaluacion->user->name;
+            }
+
+            \Log::info('Confirmación recibida para exportar en modo limitado - Docente: ' . $nombreDocente);
+
+            // Exportar con límite de registros (usuario confirmó a través del SweetAlert)
+            return $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, true);
+
+        } catch (\Exception $e) {
+            \Log::error('Error en confirmarExportarExcel: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al procesar exportación confirmada: ' . $e->getMessage()
+            ]);
+
+            return null;
         }
-
-        // Exportar con límite de registros (usuario confirmó a través del SweetAlert)
-        $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, true);
     }
 
     private function ejecutarExportacionExcel($evaluacion, $nombreDocente, $limitarRegistros)
@@ -143,25 +212,52 @@ class Show extends Component
         $templatePath = storage_path('app/templates/evaluacion_template.xlsx');
 
         if (!file_exists($templatePath)) {
-            // Si no existe la plantilla, crearemos un archivo normal
-            return Excel::download(
-                new EvaluacionExport($evaluacion, null, $nombreDocente, $limitarRegistros),
-                'evaluacion_' . $evaluacion->id . '.xlsx'
-            );
+            \Log::error('Plantilla no encontrada en: ' . $templatePath);
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se encontró la plantilla de Excel'
+            ]);
+            return;
+        }
+
+        // Asegurar que el directorio temp existe
+        $tempDir = storage_path('app/temp');
+        if (!file_exists($tempDir)) {
+            \Log::info('Creando directorio temporal: ' . $tempDir);
+            mkdir($tempDir, 0755, true);
         }
 
         try {
             // Crear el archivo usando la plantilla
-            $export = new EvaluacionExport($evaluacion, $templatePath, $nombreDocente, $limitarRegistros);
+            \Log::info('Iniciando generación de archivo Excel');
+            $export = new \App\Exports\EvaluacionExport($evaluacion, $templatePath, $nombreDocente, $limitarRegistros);
             $tempFile = $export->exportFromTemplate();
+            \Log::info('Archivo generado en: ' . $tempFile);
 
-            // Preparar la respuesta para descargar
-            return response()->download($tempFile, 'evaluacion_' . $evaluacion->id . '.xlsx')->deleteFileAfterSend(true);
+            // Verificar si el archivo existe y tiene contenido
+            if (!file_exists($tempFile) || filesize($tempFile) === 0) {
+                throw new \Exception('El archivo generado está vacío o no se pudo crear correctamente');
+            }
+
+            \Log::info('Preparando descarga del archivo Excel: ' . $tempFile);
+
+            // Generar un nombre de archivo para la descarga
+            $downloadFilename = 'evaluacion_' . $evaluacion->id . '.xlsx';
+
+            // Redireccionar a una ruta especial que servirá el archivo
+            // En lugar de devolver una respuesta directamente
+            return response()->download($tempFile, $downloadFilename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+
         } catch (\Exception $e) {
+            \Log::error('Error en executeExportacionExcel: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
             $this->dispatch('notify', [
                 'type' => 'error',
                 'message' => 'Error al exportar: ' . $e->getMessage()
             ]);
+            return null;
         }
     }
 
@@ -178,22 +274,53 @@ class Show extends Component
 
         \Log::info('Exportando evaluación a PDF. Docente: ' . $nombreDocente);
 
-        // Comprobar si el usuario está en modo trial
-        if ($currentUser->trial) {
+        // En modo trial, NO permitir exportar a PDF en absoluto
+        // Solo mostrar mensaje informativo con SweetAlert
+        if (env('APP_TRIAL_MODE', true)) {
+            \Log::info('Exportación a PDF bloqueada en modo trial');
             $this->dispatch('trial-feature-disabled');
             return;
         }
 
         try {
-            // Crear la exportación
-            $export = new EvaluacionPdfExport($evaluacion, $nombreDocente);
-            $pdf = $export->export();
+            // Verificar si la evaluación está cargada correctamente
+            \Log::info('ID de evaluación: ' . $evaluacion->id . ', Título: ' . $evaluacion->titulo);
 
-            return response()->streamDownload(
-                fn () => print($pdf->output()),
-                'evaluacion_' . $evaluacion->id . '.pdf'
-            );
+            // Crear la exportación
+            \Log::info('Iniciando proceso de exportación PDF');
+            $export = new \App\Exports\EvaluacionPdfExport($evaluacion, $nombreDocente);
+
+            // Verificar si la plantilla existe
+            $view = 'exports.evaluacion-pdf';
+            \Log::info('Verificando vista: ' . $view);
+            if (!view()->exists($view)) {
+                throw new \Exception("La vista '$view' no existe");
+            }
+
+            $pdf = $export->export();
+            \Log::info('PDF generado correctamente');
+
+            // Verificar que el output del PDF no esté vacío
+            $output = $pdf->output();
+            $size = strlen($output);
+            \Log::info('Tamaño del PDF generado: ' . $size . ' bytes');
+
+            if ($size <= 0) {
+                throw new \Exception("El PDF generado está vacío");
+            }
+
+            // Generar un archivo temporal para el PDF
+            $tempFile = storage_path('app/temp/evaluacion_' . $evaluacion->id . '_' . time() . '.pdf');
+            file_put_contents($tempFile, $output);
+            \Log::info('PDF guardado en archivo temporal: ' . $tempFile);
+
+            // Devolver el archivo para descarga
+            return response()->download($tempFile, 'evaluacion_' . $evaluacion->id . '.pdf', [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
         } catch (\Exception $e) {
+            \Log::error('Error en exportarPdf: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
             $this->dispatch('notify', [
                 'type' => 'error',
                 'message' => 'Error al exportar a PDF: ' . $e->getMessage()

@@ -14,9 +14,12 @@ return new class extends Migration
         Schema::create('evaluaciones', function (Blueprint $table) {
             $table->id();
             $table->foreignId('campo_formativo_id')->constrained('campo_formativos')->onDelete('cascade');
-            $table->foreignId('alumno_id')->constrained('alumnos')->onDelete('cascade');
-            $table->decimal('promedio_final', 5, 2)->default(0);
+            $table->string('titulo');
+            $table->text('descripcion')->nullable();
+            $table->date('fecha_evaluacion')->nullable();
+            $table->string('momento')->nullable();
             $table->boolean('is_draft')->default(true);
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             $table->softDeletes();
         });

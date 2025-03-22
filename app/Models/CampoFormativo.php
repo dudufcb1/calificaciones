@@ -19,7 +19,7 @@ class CampoFormativo extends Model
     {
         static::addGlobalScope('user', function ($query) {
             if (auth()->check()) {
-                $query->where('user_id', auth()->id());
+                $query->where('campo_formativos.user_id', auth()->id());
             }
         });
 

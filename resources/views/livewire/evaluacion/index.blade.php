@@ -4,7 +4,21 @@
             <h1 class="text-xl font-semibold text-gray-900">Evaluaciones</h1>
             <p class="mt-2 text-sm text-gray-700">Lista de evaluaciones realizadas por campo formativo.</p>
         </div>
-        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex space-x-2">
+            <button wire:click="toggleSeleccionMultiple"
+                    class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto">
+                {{ $seleccionMultiple ? 'Cancelar selección' : 'Selección múltiple' }}
+            </button>
+
+            @if($seleccionMultiple && !empty($evaluacionesSeleccionadas))
+            <button wire:click="exportarSimple" class="inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 sm:w-auto">
+                Exportar ({{ count($evaluacionesSeleccionadas) }})
+            </button>
+            <script>
+                console.log('Evaluaciones seleccionadas disponibles:', @js($evaluacionesSeleccionadas));
+            </script>
+            @endif
+
             <a href="{{ route('evaluaciones.create') }}"
                class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
                 Nueva Evaluación
@@ -47,6 +61,11 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
+                                @if($seleccionMultiple)
+                                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Seleccionar
+                                </th>
+                                @endif
                                 <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Título
                                 </th>
@@ -70,6 +89,16 @@
                         <tbody class="divide-y divide-gray-200 bg-white">
                             @forelse($evaluaciones as $evaluacion)
                                 <tr>
+                                    @if($seleccionMultiple)
+                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
+                                        <input
+                                            type="checkbox"
+                                            wire:click="toggleSeleccionEvaluacion({{ $evaluacion->id }})"
+                                            {{ in_array($evaluacion->id, $evaluacionesSeleccionadas) ? 'checked' : '' }}
+                                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                        >
+                                    </td>
+                                    @endif
                                     <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                                         {{ $evaluacion->titulo }}
                                     </td>
@@ -105,7 +134,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                    <td colspan="{{ $seleccionMultiple ? 7 : 6 }}" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                         No hay evaluaciones registradas.
                                     </td>
                                 </tr>
@@ -159,4 +188,59 @@
             </div>
         </div>
     @endif
+
+    <!-- Modal de confirmación para exportar múltiples evaluaciones -->
+    <div class="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true"
+        x-data="{ open: false }"
+        x-init="$watch('open', value => { console.log('Modal Export estado:', value) })"
+        x-on:show-export-modal.window="open = true; console.log('Evento Alpine: show-export-modal recibido');"
+        x-on:hide-export-modal.window="open = false; console.log('Evento Alpine: hide-export-modal recibido');"
+        :class="{'hidden': !open}"
+        @if($showExportModal) x-init="() => { open = true; console.log('Modal inicializado como abierto desde servidor'); }" @endif
+        x-cloak>
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0" x-show="open">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                                Exportar Diferentes Campos Formativos
+                            </h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500">
+                                    Estás a punto de exportar {{ count($evaluacionesSeleccionadas) }} evaluaciones en un solo archivo Excel. Cada evaluación tendrá su propia hoja en el archivo.
+                                </p>
+                                <div class="mt-2 py-1 px-2 bg-indigo-100 text-indigo-800 text-sm rounded">
+                                    Estado del modal: <span x-text="open ? 'Abierto' : 'Cerrado'"></span>
+                                    <br>
+                                    Evaluaciones seleccionadas: {{ count($evaluacionesSeleccionadas) }}
+                                </div>
+
+                                @if(auth()->user()->trial)
+                                <p class="mt-2 text-sm text-red-500 font-semibold">
+                                    Esta función solo está disponible para usuarios con membresía premium.
+                                </p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button wire:click="exportarMultiplesEvaluaciones" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm">
+                        Exportar
+                    </button>
+                    <button wire:click="cancelExport" @click="open = false; console.log('Botón Cancelar clickeado manualmente')" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

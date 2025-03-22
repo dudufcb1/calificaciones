@@ -6,12 +6,15 @@ use App\Models\Alumno;
 use App\Models\Asistencia;
 use App\Models\ConfiguracionAsistencia;
 use App\Models\Grupo;
+use App\Services\TwilioService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\On;
 
 #[Layout('layouts.app')]
 class PasarLista extends Component
@@ -25,6 +28,8 @@ class PasarLista extends Component
     public $asistenciasOriginales = [];
     public $configuracionMes;
     public $hayCambiosPendientes = false;
+    public $alumnosConFalta = [];
+    public $mostrarConfirmacionSMS = false;
 
     protected $rules = [
         'asistencias.*.estado' => 'required|in:asistio,falta,justificada',
@@ -139,6 +144,7 @@ class PasarLista extends Component
         $fecha = $this->fecha;
         $user_id = Auth::id();
         $alumnosModificados = [];
+        $this->alumnosConFalta = []; // Reiniciar la lista de alumnos con falta
 
         foreach ($this->asistencias as $alumno_id => $asistencia) {
             // Determinar el valor de 'asistio' basado en el estado
@@ -179,14 +185,277 @@ class PasarLista extends Component
                     'updated_at' => now()
                 ]);
             }
+
+            // Si el alumno tiene falta, agregarlo a la lista de alumnos con falta
+            if ($estado === 'falta') {
+                // Obtener el alumno para tener sus datos
+                $alumno = Alumno::find($alumno_id);
+                if ($alumno) {
+                    Log::info("Procesando alumno con falta: {$alumno->nombre_completo}");
+
+                    // Verificar si tiene teléfono del tutor
+                    if (!empty($alumno->telefono_tutor)) {
+                        Log::info("Alumno {$alumno->nombre_completo} tiene teléfono de tutor: {$alumno->telefono_tutor}");
+                        $this->alumnosConFalta[] = [
+                            'id' => $alumno->id,
+                            'nombre' => $alumno->nombre_completo,
+                            'telefono_tutor' => $alumno->telefono_tutor
+                        ];
+                    } else {
+                        Log::warning("Alumno {$alumno->nombre_completo} NO tiene teléfono de tutor registrado");
+                    }
+                }
+            }
         }
 
         // Forzamos una recarga completa de los datos desde la base de datos
         $this->cargarAsistencias();
+
+        // Notificar que se guardaron las asistencias
         $this->dispatch('notify', [
-            'message' => 'Asistencias guardadas correctamente',
-            'type' => 'success'
+            'type' => 'success',
+            'message' => 'Asistencias guardadas correctamente'
         ]);
+
+        // Si hay alumnos con falta, mostrar diálogo de confirmación para enviar SMS
+        if (count($this->alumnosConFalta) > 0) {
+            Log::info("Hay " . count($this->alumnosConFalta) . " alumnos con falta. Enviando evento de confirmación SMS");
+            $this->mostrarConfirmacionSMS = true;
+
+            // Enviar el array directamente para que JavaScript lo pueda procesar correctamente
+            $this->js('
+                console.log("Ejecutando evento SMS desde PHP");
+
+                // Datos de alumnos con falta para enviar SMS
+                const alumnosConFalta = '.json_encode($this->alumnosConFalta).';
+
+                // Crear lista de alumnos
+                let listaAlumnos = "";
+                alumnosConFalta.forEach(alumno => {
+                    listaAlumnos += `<li>${alumno.nombre}</li>`;
+                });
+
+                // Mostrar diálogo de confirmación
+                Swal.fire({
+                    title: "Notificar Faltas por SMS",
+                    html: `
+                        <p>Los siguientes alumnos han faltado:</p>
+                        <ul class="text-left">${listaAlumnos}</ul>
+                        <p>¿Deseas enviar un SMS a sus padres/tutores?</p>
+                    `,
+                    icon: "question",
+                    showCancelButton: true,
+                    confirmButtonText: "Sí, enviar SMS",
+                    cancelButtonText: "No, gracias",
+                    confirmButtonColor: "#4f46e5",
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Mostrar aviso de servicio contratado
+                        Swal.fire({
+                            title: "Servicio de Notificaciones",
+                            html: `
+                                <p class="text-warning font-bold">Esta función está disponible solo para usuarios que tengan contratado el servicio de notificaciones.</p>
+                                <p class="mt-3">Para contratar este servicio, contacta con nosotros:</p>
+                                <a href="https://wa.me/9616085491" target="_blank" class="btn btn-success mt-2">
+                                    <i class="fab fa-whatsapp mr-1"></i> Contactar por WhatsApp
+                                </a>
+                            `,
+                            icon: "warning",
+                            showCancelButton: false,
+                            confirmButtonText: "Entendido",
+                            confirmButtonColor: "#4f46e5",
+                        }).then((segundoResultado) => {
+                            Toast.fire({
+                                icon: "info",
+                                title: "Envío de SMS cancelado"
+                            });
+                        });
+                    } else {
+                        Toast.fire({
+                            icon: "info",
+                            title: "Envío de SMS cancelado"
+                        });
+                    }
+                });
+            ');
+
+            Log::info("Código JavaScript para mostrar confirmación SMS generado con " . count($this->alumnosConFalta) . " alumnos");
+        } else {
+            Log::info("No hay alumnos con falta para enviar SMS");
+        }
+    }
+
+    /**
+     * Enviar SMS a los tutores de los alumnos con falta
+     */
+    #[On('confirmarEnvioSMS')]
+    public function enviarSMS()
+    {
+        try {
+            Log::info("Método enviarSMS iniciado");
+
+            // Verificar si el usuario tiene el servicio de SMS contratado
+            $user = Auth::user();
+            if (!$user->hasSmsService()) {
+                Log::warning("Usuario no tiene contratado el servicio de SMS");
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No tienes contratado el servicio de notificaciones SMS'
+                ]);
+
+                // Mostrar mensaje de contratación de servicio
+                $this->js('
+                    Swal.fire({
+                        title: "Servicio no contratado",
+                        html: `
+                            <p class="text-warning font-bold">No tienes contratado el servicio de notificaciones SMS.</p>
+                            <p class="mt-3">Para contratar este servicio y poder enviar notificaciones a los padres/tutores, contacta con nosotros:</p>
+                            <a href="https://wa.me/9616085491" target="_blank" class="btn btn-success mt-2">
+                                <i class="fab fa-whatsapp mr-1"></i> Contactar por WhatsApp
+                            </a>
+                        `,
+                        icon: "warning",
+                        confirmButtonText: "Entendido",
+                        confirmButtonColor: "#4f46e5",
+                    });
+                ');
+                return;
+            }
+
+            $twilioService = app(TwilioService::class);
+
+            if (!$twilioService->isConfigured()) {
+                Log::error("Servicio Twilio no configurado correctamente");
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'El servicio de SMS no está configurado correctamente'
+                ]);
+                return;
+            }
+
+            Log::info("Servicio Twilio configurado correctamente");
+
+            if (empty($this->alumnosConFalta)) {
+                Log::warning("No hay alumnos con falta para enviar SMS en el momento de la ejecución");
+                $this->dispatch('notify', [
+                    'type' => 'warning',
+                    'message' => 'No hay alumnos con faltas para enviar SMS'
+                ]);
+                return;
+            }
+
+            Log::info("Procesando " . count($this->alumnosConFalta) . " alumnos con faltas para SMS");
+
+            $mensajesEnviados = 0;
+            $errores = 0;
+            $fecha = Carbon::parse($this->fecha)->format('d/m/Y');
+            $detallesMensajes = [];
+
+            foreach ($this->alumnosConFalta as $alumno) {
+                if (empty($alumno['telefono_tutor'])) {
+                    Log::warning("Alumno {$alumno['nombre']} no tiene teléfono de tutor registrado");
+                    continue;
+                }
+
+                Log::info("Enviando SMS a tutor de {$alumno['nombre']} al número {$alumno['telefono_tutor']}");
+
+                $mensaje = "NOTIFICACIÓN ESCOLAR: El alumno {$alumno['nombre']} no asistió a clases el día {$fecha}. Por favor contacte a la escuela para más información.";
+
+                $resultado = $twilioService->sendSMS($alumno['telefono_tutor'], $mensaje);
+
+                if ($resultado['success']) {
+                    $mensajesEnviados++;
+                    Log::info("SMS enviado correctamente a tutor de {$alumno['nombre']}");
+                    $detallesMensajes[] = "✓ {$alumno['nombre']}";
+                } else {
+                    $errores++;
+                    Log::error("Error al enviar SMS a tutor de {$alumno['nombre']}: " . $resultado['message']);
+                    $detallesMensajes[] = "✗ {$alumno['nombre']} - Error: " . substr($resultado['message'], 0, 50) . "...";
+                }
+            }
+
+            // Generar mensaje detallado
+            $mensajeDetallado = "";
+            if ($mensajesEnviados > 0) {
+                $mensajeDetallado = "Se enviaron {$mensajesEnviados} mensajes correctamente. ";
+            }
+            if ($errores > 0) {
+                $mensajeDetallado .= "Hubo {$errores} errores.";
+            }
+
+            // Mostrar mensaje de resultado
+            if ($mensajesEnviados > 0) {
+                $this->dispatch('notify', [
+                    'type' => 'success',
+                    'message' => $mensajeDetallado
+                ]);
+
+                // Mostrar diálogo de resultados usando JavaScript directamente
+                $this->js('
+                    console.log("Mostrando resultados de envío SMS");
+
+                    // Datos de resultados
+                    const resultados = {
+                        exito: '.$mensajesEnviados.',
+                        errores: '.$errores.',
+                        detalles: '.json_encode($detallesMensajes).'
+                    };
+
+                    // Determinar icono y mensaje basado en los resultados
+                    let mensaje = "";
+                    let icon = "info";
+
+                    if (resultados.exito > 0 && resultados.errores === 0) {
+                        mensaje = `<p>Todos los mensajes se enviaron correctamente:</p>`;
+                        icon = "success";
+                    } else if (resultados.exito > 0 && resultados.errores > 0) {
+                        mensaje = `<p>Se enviaron ${resultados.exito} mensajes correctamente, pero hubo ${resultados.errores} errores:</p>`;
+                        icon = "warning";
+                    } else {
+                        mensaje = `<p>No se pudo enviar ningún mensaje. Se encontraron ${resultados.errores} errores:</p>`;
+                        icon = "error";
+                    }
+
+                    // Agregar detalles al mensaje
+                    mensaje += \'<ul class="text-left mt-3" style="max-height: 300px; overflow-y: auto;">\';
+                    resultados.detalles.forEach(detalle => {
+                        mensaje += `<li class="mb-1">${detalle}</li>`;
+                    });
+                    mensaje += "</ul>";
+
+                    // Mostrar modal con detalles
+                    Swal.fire({
+                        title: "Resultado del envío de SMS",
+                        html: mensaje,
+                        icon: icon,
+                        confirmButtonText: "Entendido",
+                        confirmButtonColor: "#4f46e5",
+                    });
+                ');
+
+                Log::info("Código JavaScript para mostrar resultado de SMS generado: {$mensajesEnviados} exitosos, {$errores} errores");
+            } else {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => "No se pudo enviar ningún mensaje. " . ($errores > 0 ? "Hubo {$errores} errores." : "")
+                ]);
+            }
+
+            if ($errores > 0) {
+                Log::warning("Hubo {$errores} errores al enviar SMS. Revise los logs para más detalles.");
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error al enviar SMS: ' . $e->getMessage());
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al enviar SMS: ' . $e->getMessage()
+            ]);
+        }
+
+        // Reiniciar variables
+        $this->alumnosConFalta = [];
+        $this->mostrarConfirmacionSMS = false;
     }
 
     public function obtenerAlumnos()

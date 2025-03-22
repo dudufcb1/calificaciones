@@ -22,7 +22,7 @@ class Criterio extends Model
     {
         static::addGlobalScope('user', function ($query) {
             if (auth()->check()) {
-                $query->where('user_id', auth()->id());
+                $query->where('criterios.user_id', auth()->id());
             }
         });
 
