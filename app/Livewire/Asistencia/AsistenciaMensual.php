@@ -4,12 +4,19 @@ namespace App\Livewire\Asistencia;
 
 use App\Models\Alumno;
 use App\Models\Asistencia;
+use App\Models\CampoFormativo;
+use App\Models\Ciclo;
+use App\Models\DiaConCampoFormativo;
 use App\Models\Grupo;
+use App\Models\Momento;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\AsistenciaCamposFormativosExport;
+use Illuminate\Support\Facades\Log;
 
 #[Layout('layouts.app')]
 class AsistenciaMensual extends Component
@@ -24,6 +31,24 @@ class AsistenciaMensual extends Component
     public $alumnos = [];
     public $estadisticas = [];
     public $editandoNoLaborables = false;
+
+    // Nuevas propiedades para campos formativos
+    public $camposFormativos = [];
+    public $cicloActual;
+    public $momentos = [];
+    public $diaSeleccionadoParaCampos = null;
+    public $camposFormativosPorDia = [];
+    public $camposSeleccionados = [];
+    public $editandoCamposFormativos = false;
+    public $estadisticasPorCampoFormativo = [];
+    public $coloresCamposFormativos = [];
+
+    // Propiedades para los modales adicionales
+    public $mostrandoModalRangoFechas = false;
+    public $fechaInicioRango = null;
+    public $fechaFinRango = null;
+    public $confirmandoBorrado = false;
+    public $confirmandoBorradoFinal = false;
 
     public function mount()
     {
@@ -40,8 +65,68 @@ class AsistenciaMensual extends Component
             $this->grupo_id = $this->grupos->first()->id;
         }
 
+        // Cargar campos formativos
+        $this->cargarCamposFormativos();
+
+        // Cargar ciclo escolar actual
+        $this->cicloActual = Ciclo::where('activo', true)->first();
+
+        // Cargar momentos del ciclo actual
+        if ($this->cicloActual) {
+            $this->momentos = $this->cicloActual->momentos;
+        }
+
         $this->cargarDiasDelMes();
         $this->cargarAsistencias();
+        $this->cargarCamposFormativosPorDia();
+        $this->asignarColoresACamposFormativos();
+    }
+
+    protected function asignarColoresACamposFormativos()
+    {
+        $colores = [
+            'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
+            'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
+            'bg-orange-500', 'bg-cyan-500'
+        ];
+
+        $this->coloresCamposFormativos = [];
+
+        foreach ($this->camposFormativos as $index => $campo) {
+            $colorIndex = $index % count($colores);
+            $this->coloresCamposFormativos[$campo->id] = $colores[$colorIndex];
+        }
+    }
+
+    public function cargarCamposFormativos()
+    {
+        $this->camposFormativos = CampoFormativo::all();
+    }
+
+    public function cargarCamposFormativosPorDia()
+    {
+        if (empty($this->grupo_id)) {
+            return;
+        }
+
+        // Obtener todos los días con campos formativos para este grupo y mes
+        $diasConCampos = DiaConCampoFormativo::obtenerPorGrupoYMes($this->grupo_id, $this->anio, $this->mes);
+
+        // Inicializar arreglo de campos formativos por día
+        $this->camposFormativosPorDia = [];
+
+        // Agrupar por fecha
+        foreach ($diasConCampos as $diaConCampo) {
+            $fecha = $diaConCampo->fecha->format('Y-m-d');
+
+            if (!isset($this->camposFormativosPorDia[$fecha])) {
+                $this->camposFormativosPorDia[$fecha] = [];
+            }
+
+            $this->camposFormativosPorDia[$fecha][] = $diaConCampo->campo_formativo_id;
+        }
+
+        $this->calcularEstadisticasPorCampoFormativo();
     }
 
     public function cargarDiasDelMes()
@@ -83,11 +168,13 @@ class AsistenciaMensual extends Component
 
         $this->cargarDiasDelMes();
         $this->cargarAsistencias();
+        $this->cargarCamposFormativosPorDia();
     }
 
     public function updatedGrupoId()
     {
         $this->cargarAsistencias();
+        $this->cargarCamposFormativosPorDia();
     }
 
     public function cargarAsistencias()
@@ -137,6 +224,7 @@ class AsistenciaMensual extends Component
         }
 
         $this->calcularEstadisticas();
+        $this->calcularEstadisticasPorCampoFormativo();
     }
 
     public function guardarAsistencia($alumno_id, $fecha, $estado)
@@ -181,6 +269,7 @@ class AsistenciaMensual extends Component
 
         // Recalcular estadísticas
         $this->calcularEstadisticas();
+        $this->calcularEstadisticasPorCampoFormativo();
 
         // Notificar al usuario
         $this->dispatch('notify', [
@@ -202,11 +291,419 @@ class AsistenciaMensual extends Component
         }
 
         $this->calcularEstadisticas();
+        $this->calcularEstadisticasPorCampoFormativo();
     }
 
     public function toggleEdicionNoLaborables()
     {
         $this->editandoNoLaborables = !$this->editandoNoLaborables;
+        $this->editandoCamposFormativos = false;
+        $this->diaSeleccionadoParaCampos = null;
+    }
+
+    public function toggleEdicionCamposFormativos()
+    {
+        $this->editandoCamposFormativos = !$this->editandoCamposFormativos;
+        $this->editandoNoLaborables = false;
+        $this->diaSeleccionadoParaCampos = null;
+    }
+
+    public function seleccionarDiaParaCampos($fecha)
+    {
+        if (!$this->editandoCamposFormativos) {
+            return;
+        }
+
+        // No permitir seleccionar días no laborables
+        if (in_array($fecha, $this->diasNoLaborables)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se pueden asignar campos formativos a días no laborables'
+            ]);
+            return;
+        }
+
+        // Si ya está seleccionado, lo deseleccionamos
+        if ($this->diaSeleccionadoParaCampos === $fecha) {
+            $this->diaSeleccionadoParaCampos = null;
+            $this->camposSeleccionados = [];
+            return;
+        }
+
+        $this->diaSeleccionadoParaCampos = $fecha;
+
+        // Cargamos los campos formativos seleccionados para este día
+        $this->camposSeleccionados = $this->camposFormativosPorDia[$fecha] ?? [];
+    }
+
+    public function toggleCampoFormativo($campoFormativoId)
+    {
+        if (!$this->diaSeleccionadoParaCampos) {
+            return;
+        }
+
+        // Verifica si el campo formativo ya está seleccionado
+        $key = array_search($campoFormativoId, $this->camposSeleccionados);
+
+        if ($key !== false) {
+            // Si ya existe, lo eliminamos del arreglo
+            unset($this->camposSeleccionados[$key]);
+            $this->camposSeleccionados = array_values($this->camposSeleccionados);
+        } else {
+            // Si no existe, lo agregamos
+            $this->camposSeleccionados[] = $campoFormativoId;
+        }
+    }
+
+    public function guardarCamposFormativos()
+    {
+        if (!$this->diaSeleccionadoParaCampos || !$this->grupo_id) {
+            return;
+        }
+
+        // Eliminar los campos formativos existentes para este día y grupo
+        DiaConCampoFormativo::where('fecha', $this->diaSeleccionadoParaCampos)
+            ->where('grupo_id', $this->grupo_id)
+            ->delete();
+
+        // Guardar los nuevos campos formativos seleccionados
+        foreach ($this->camposSeleccionados as $campoFormativoId) {
+            DiaConCampoFormativo::create([
+                'fecha' => $this->diaSeleccionadoParaCampos,
+                'grupo_id' => $this->grupo_id,
+                'campo_formativo_id' => $campoFormativoId
+            ]);
+        }
+
+        // Actualizar el arreglo local de campos formativos por día
+        $this->camposFormativosPorDia[$this->diaSeleccionadoParaCampos] = $this->camposSeleccionados;
+
+        // Recalcular estadísticas
+        $this->calcularEstadisticasPorCampoFormativo();
+
+        // Cerrar el modal
+        $this->diaSeleccionadoParaCampos = null;
+        $this->camposSeleccionados = [];
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'Campos formativos guardados correctamente'
+        ]);
+    }
+
+    /**
+     * Aplica la configuración de campos formativos a todos los días similares del mes
+     */
+    public function aplicarATodosDiasSimilares($fecha)
+    {
+        if (empty($this->camposSeleccionados) || !$this->grupo_id) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar al menos un campo formativo'
+            ]);
+            return;
+        }
+
+        // Obtener el día de la semana de la fecha seleccionada (0-6)
+        $diaSemana = date('w', strtotime($fecha));
+
+        // Recorrer todos los días del mes actual
+        $fechaInicio = Carbon::createFromDate($this->anio, $this->mes, 1);
+        $fechaFin = $fechaInicio->copy()->endOfMonth();
+
+        $diasActualizados = 0;
+
+        for ($fecha = $fechaInicio; $fecha->lte($fechaFin); $fecha->addDay()) {
+            // Si es el mismo día de la semana y no es un día no laborable
+            if ($fecha->dayOfWeek == $diaSemana && !in_array($fecha->format('Y-m-d'), $this->diasNoLaborables)) {
+                $fechaStr = $fecha->format('Y-m-d');
+
+                // Eliminar campos formativos existentes para este día
+                DiaConCampoFormativo::where('fecha', $fechaStr)
+                    ->where('grupo_id', $this->grupo_id)
+                    ->delete();
+
+                // Guardar los nuevos campos formativos
+                foreach ($this->camposSeleccionados as $campoFormativoId) {
+                    DiaConCampoFormativo::create([
+                        'fecha' => $fechaStr,
+                        'grupo_id' => $this->grupo_id,
+                        'campo_formativo_id' => $campoFormativoId
+                    ]);
+                }
+
+                // Actualizar el arreglo local
+                $this->camposFormativosPorDia[$fechaStr] = $this->camposSeleccionados;
+
+                $diasActualizados++;
+            }
+        }
+
+        // Recalcular estadísticas
+        $this->calcularEstadisticasPorCampoFormativo();
+
+        // Cerrar el modal
+        $this->diaSeleccionadoParaCampos = null;
+        $this->camposSeleccionados = [];
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Configuración aplicada a $diasActualizados días similares"
+        ]);
+    }
+
+    /**
+     * Muestra el modal para seleccionar un rango de fechas
+     */
+    public function mostrarModalRangoFechas()
+    {
+        if (empty($this->camposSeleccionados)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar al menos un campo formativo'
+            ]);
+            return;
+        }
+
+        // Inicializar fechas con el inicio y fin del mes actual
+        $this->fechaInicioRango = Carbon::createFromDate($this->anio, $this->mes, 1)->format('Y-m-d');
+        $this->fechaFinRango = Carbon::createFromDate($this->anio, $this->mes, 1)->endOfMonth()->format('Y-m-d');
+
+        $this->mostrandoModalRangoFechas = true;
+    }
+
+    /**
+     * Cierra el modal de rango de fechas
+     */
+    public function cerrarModalRangoFechas()
+    {
+        $this->mostrandoModalRangoFechas = false;
+        $this->fechaInicioRango = null;
+        $this->fechaFinRango = null;
+    }
+
+    /**
+     * Aplica la configuración de campos formativos a un rango de fechas
+     */
+    public function aplicarARangoFechas()
+    {
+        if (empty($this->camposSeleccionados) || !$this->grupo_id) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar al menos un campo formativo'
+            ]);
+            return;
+        }
+
+        if (!$this->fechaInicioRango || !$this->fechaFinRango) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar un rango de fechas válido'
+            ]);
+            return;
+        }
+
+        // Validar que la fecha de inicio sea menor o igual que la fecha de fin
+        $fechaInicio = Carbon::parse($this->fechaInicioRango);
+        $fechaFin = Carbon::parse($this->fechaFinRango);
+
+        if ($fechaInicio->gt($fechaFin)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'La fecha de inicio debe ser menor o igual a la fecha de fin'
+            ]);
+            return;
+        }
+
+        $diasActualizados = 0;
+
+        for ($fecha = $fechaInicio; $fecha->lte($fechaFin); $fecha->addDay()) {
+            // Verificar que la fecha esté en el mes actual y no sea un día no laborable
+            if ($fecha->month == $this->mes && $fecha->year == $this->anio &&
+                !in_array($fecha->format('Y-m-d'), $this->diasNoLaborables)) {
+                $fechaStr = $fecha->format('Y-m-d');
+
+                // Eliminar campos formativos existentes para este día
+                DiaConCampoFormativo::where('fecha', $fechaStr)
+                    ->where('grupo_id', $this->grupo_id)
+                    ->delete();
+
+                // Guardar los nuevos campos formativos
+                foreach ($this->camposSeleccionados as $campoFormativoId) {
+                    DiaConCampoFormativo::create([
+                        'fecha' => $fechaStr,
+                        'grupo_id' => $this->grupo_id,
+                        'campo_formativo_id' => $campoFormativoId
+                    ]);
+                }
+
+                // Actualizar el arreglo local
+                $this->camposFormativosPorDia[$fechaStr] = $this->camposSeleccionados;
+
+                $diasActualizados++;
+            }
+        }
+
+        // Recalcular estadísticas
+        $this->calcularEstadisticasPorCampoFormativo();
+
+        // Cerrar el modal
+        $this->mostrandoModalRangoFechas = false;
+        $this->fechaInicioRango = null;
+        $this->fechaFinRango = null;
+        $this->diaSeleccionadoParaCampos = null;
+        $this->camposSeleccionados = [];
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Configuración aplicada a $diasActualizados días"
+        ]);
+    }
+
+    /**
+     * Muestra el primer modal de confirmación para borrar toda la planificación
+     */
+    public function confirmarBorrarPlanificacion()
+    {
+        $this->confirmandoBorrado = true;
+    }
+
+    /**
+     * Cierra el primer modal de confirmación
+     */
+    public function cerrarModalConfirmacionBorrado()
+    {
+        $this->confirmandoBorrado = false;
+    }
+
+    /**
+     * Muestra el segundo modal de confirmación para borrar toda la planificación
+     */
+    public function confirmarBorradoFinal()
+    {
+        $this->confirmandoBorrado = false;
+        $this->confirmandoBorradoFinal = true;
+    }
+
+    /**
+     * Cierra el segundo modal de confirmación
+     */
+    public function cerrarModalConfirmacionBorradoFinal()
+    {
+        $this->confirmandoBorradoFinal = false;
+    }
+
+    /**
+     * Borra toda la planificación de campos formativos del mes actual
+     */
+    public function borrarTodaPlanificacion()
+    {
+        if (!$this->grupo_id) {
+            return;
+        }
+
+        // Obtener el primer y último día del mes actual
+        $fechaInicio = Carbon::createFromDate($this->anio, $this->mes, 1)->format('Y-m-d');
+        $fechaFin = Carbon::createFromDate($this->anio, $this->mes, 1)->endOfMonth()->format('Y-m-d');
+
+        // Eliminar todos los registros de campos formativos para este grupo y mes
+        $registrosEliminados = DiaConCampoFormativo::where('grupo_id', $this->grupo_id)
+            ->whereBetween('fecha', [$fechaInicio, $fechaFin])
+            ->delete();
+
+        // Limpiar los arreglos locales
+        $this->camposFormativosPorDia = [];
+        $this->calcularEstadisticasPorCampoFormativo();
+
+        // Cerrar el modal
+        $this->confirmandoBorradoFinal = false;
+        $this->diaSeleccionadoParaCampos = null;
+        $this->camposSeleccionados = [];
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Se ha eliminado toda la planificación del mes de {$this->nombreMes}"
+        ]);
+    }
+
+    public function calcularEstadisticasPorCampoFormativo()
+    {
+        if (empty($this->grupo_id) || empty($this->alumnos)) {
+            return;
+        }
+
+        $this->estadisticasPorCampoFormativo = [];
+
+        // Inicializar estadísticas para cada campo formativo
+        foreach ($this->camposFormativos as $campo) {
+            foreach ($this->alumnos as $alumno) {
+                if (!isset($this->estadisticasPorCampoFormativo[$alumno->id])) {
+                    $this->estadisticasPorCampoFormativo[$alumno->id] = [];
+                }
+
+                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id] = [
+                    'total_dias' => 0,
+                    'asistencias' => 0,
+                    'inasistencias' => 0,
+                    'justificadas' => 0,
+                    'porcentaje_asistencia' => 0,
+                    'porcentaje_inasistencia' => 0,
+                ];
+            }
+        }
+
+        // Recorrer los días del mes
+        foreach ($this->diasDelMes as $dia) {
+            $fecha = $dia['fecha'];
+
+            // No contar días no laborables
+            if (in_array($fecha, $this->diasNoLaborables)) {
+                continue;
+            }
+
+            // Obtener campos formativos para este día
+            $camposFormativosDia = $this->camposFormativosPorDia[$fecha] ?? [];
+
+            // Si no hay campos formativos para este día, continuar
+            if (empty($camposFormativosDia)) {
+                continue;
+            }
+
+            // Calcular estadísticas para cada alumno y campo formativo
+            foreach ($this->alumnos as $alumno) {
+                $estado = $this->asistencias[$alumno->id][$fecha] ?? 'falta';
+
+                foreach ($camposFormativosDia as $campoFormativoId) {
+                    // Incrementar el contador total_dias
+                    $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['total_dias']++;
+
+                    // Incrementar el contador correspondiente según el estado
+                    if ($estado == 'asistio') {
+                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['asistencias']++;
+                    } elseif ($estado == 'justificada') {
+                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['justificadas']++;
+                    } else {
+                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['inasistencias']++;
+                    }
+                }
+            }
+        }
+
+        // Calcular porcentajes
+        foreach ($this->alumnos as $alumno) {
+            foreach ($this->camposFormativos as $campo) {
+                $totalDias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['total_dias'];
+                $asistencias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['asistencias'];
+                $inasistencias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['inasistencias'];
+
+                // Evitar división por cero
+                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['porcentaje_asistencia'] =
+                    $totalDias > 0 ? round(($asistencias / $totalDias) * 100, 2) : 0;
+
+                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['porcentaje_inasistencia'] =
+                    $totalDias > 0 ? round(($inasistencias / $totalDias) * 100, 2) : 0;
+            }
+        }
     }
 
     public function calcularEstadisticas()
@@ -250,14 +747,19 @@ class AsistenciaMensual extends Component
                 'inasistencias' => $inasistencias,
                 'justificadas' => $justificadas,
                 'porcentaje_asistencia' => $porcentajeAsistencia,
-                'porcentaje_inasistencia' => $porcentajeInasistencia
+                'porcentaje_inasistencia' => $porcentajeInasistencia,
             ];
         }
     }
 
     public function getNombreMesProperty()
     {
-        return ucfirst(Carbon::createFromDate($this->anio, $this->mes, 1)->locale('es')->monthName);
+        $meses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+        ];
+        return $meses[$this->mes];
     }
 
     public function marcarTodosPresentes($fecha)
@@ -286,6 +788,7 @@ class AsistenciaMensual extends Component
 
         // Recalcular estadísticas
         $this->calcularEstadisticas();
+        $this->calcularEstadisticasPorCampoFormativo();
 
         // Notificar al usuario
         $this->dispatch('notify', [
@@ -335,12 +838,45 @@ class AsistenciaMensual extends Component
 
         // Recalcular estadísticas
         $this->calcularEstadisticas();
+        $this->calcularEstadisticasPorCampoFormativo();
 
         // Notificar al usuario
         $this->dispatch('notify', [
             'type' => 'success',
             'message' => "Se han marcado {$totalRegistros} asistencias para {$alumnosCount} alumnos en {$diasCount} días laborables"
         ]);
+    }
+
+    public function exportarExcel()
+    {
+        // Verificar que hay datos para exportar
+        if (empty($this->grupo_id) || empty($this->alumnos)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No hay datos para exportar'
+            ]);
+            return;
+        }
+
+        $nombreArchivo = 'asistencia_campos_formativos_' . $this->nombreMes . '_' . $this->anio . '.xlsx';
+
+        return Excel::download(
+            new AsistenciaCamposFormativosExport(
+                $this->alumnos,
+                $this->diasDelMes,
+                $this->diasNoLaborables,
+                $this->asistencias,
+                $this->estadisticas,
+                $this->camposFormativos,
+                $this->camposFormativosPorDia,
+                $this->estadisticasPorCampoFormativo,
+                $this->nombreMes,
+                $this->anio,
+                $this->grupos->find($this->grupo_id)->nombre ?? '',
+                $this->cicloActual ? $this->cicloActual->nombre_formateado : ''
+            ),
+            $nombreArchivo
+        );
     }
 
     public function render()
