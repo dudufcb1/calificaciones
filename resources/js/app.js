@@ -233,9 +233,16 @@ window.addEventListener('mostrar-modal-exportacion', event => {
 // Evento para el manejo de alertas en usuarios Trial - PDF
 window.addEventListener('trial-feature-disabled', event => {
     console.log('Evento trial-feature-disabled recibido');
+
+    // Usar título y mensaje personalizados si se proporcionan, o valores predeterminados si no
+    const title = event.detail && event.detail.title ? event.detail.title : 'Función no disponible';
+    const message = event.detail && event.detail.message
+        ? event.detail.message
+        : 'Esta función no está disponible para usuarios en modo prueba. Actualice a la versión completa para acceder a esta funcionalidad.';
+
     Swal.fire({
-        title: 'Función no disponible',
-        text: 'La exportación a PDF no está disponible para usuarios en modo prueba. Actualice a la versión completa para acceder a esta funcionalidad.',
+        title: title,
+        text: message,
         icon: 'info',
         confirmButtonText: 'Entendido',
         confirmButtonColor: '#4f46e5',

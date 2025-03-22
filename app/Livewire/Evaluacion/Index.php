@@ -182,6 +182,24 @@ class Index extends Component
         file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - Data recibida: " . json_encode($data) . "\n", FILE_APPEND);
 
         try {
+            // Verificar si estamos en modo trial - usando la misma lógica que en Show.php
+            $appTrialMode = env('APP_TRIAL_MODE', true);
+            $userIsTrial = auth()->check() && auth()->user()->trial;
+
+            file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - APP_TRIAL_MODE: " . ($appTrialMode ? 'SÍ' : 'NO') . "\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - Usuario tiene flag trial: " . ($userIsTrial ? 'SÍ' : 'NO') . "\n", FILE_APPEND);
+
+            // Si la aplicación está en modo trial o el usuario tiene flag trial, bloquear
+            if ($appTrialMode && $userIsTrial) {
+                file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - Bloqueando exportación para usuario trial\n", FILE_APPEND);
+                // Mostrar mensaje de restricción con SweetAlert en lugar de notificación
+                $this->dispatch('trial-feature-disabled', [
+                    'title' => 'Función Premium',
+                    'message' => 'La exportación a Excel es una característica premium. Para acceder a esta funcionalidad, adquiera una membresía completa.'
+                ]);
+                return null;
+            }
+
             // Notificar a la UI que se recibió la llamada
             $this->dispatch('notify', [
                 'type' => 'info',
@@ -228,6 +246,19 @@ class Index extends Component
             // Incluir PhpSpreadsheet
             if (!class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet')) {
                 throw new \Exception('La librería PhpSpreadsheet no está disponible');
+            }
+
+            // Verificar si estamos en modo trial - usando la misma lógica que en Show.php
+            $appTrialMode = env('APP_TRIAL_MODE', true);
+            $userIsTrial = auth()->check() && auth()->user()->trial;
+
+            file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - [Excel] APP_TRIAL_MODE: " . ($appTrialMode ? 'SÍ' : 'NO') . "\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - [Excel] Usuario tiene flag trial: " . ($userIsTrial ? 'SÍ' : 'NO') . "\n", FILE_APPEND);
+
+            // Si la aplicación está en modo trial o el usuario tiene flag trial, bloquear
+            if ($appTrialMode && $userIsTrial) {
+                file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - [Excel] Bloqueando exportación para usuario trial\n", FILE_APPEND);
+                throw new \Exception('Funcionalidad premium no disponible en modo prueba');
             }
 
             file_put_contents(storage_path('logs/custom_log.txt'), date('Y-m-d H:i:s') . " - Generando Excel con PhpSpreadsheet\n", FILE_APPEND);
@@ -285,6 +316,7 @@ class Index extends Component
                         $criterios[] = [
                             'id' => $criterio->id,
                             'nombre' => $criterio->nombre,
+                            'porcentaje' => $criterio->porcentaje ?? 0,
                             'orden' => $criterio->orden ?? $criterio->id
                         ];
                     }
@@ -313,19 +345,19 @@ class Index extends Component
                 $row++; // Avanzar a la siguiente fila
 
                 // Establecer encabezados para esta evaluación en la hoja principal
-                $mainSheet->setCellValue('A' . $row, 'ID Evaluación');
-                $mainSheet->setCellValue('B' . $row, 'Título Evaluación');
-                $mainSheet->setCellValue('C' . $row, 'Campo Formativo');
-                $mainSheet->setCellValue('D' . $row, 'Fecha');
-                $mainSheet->setCellValue('E' . $row, 'MOMENTO');
-                $mainSheet->setCellValue('F' . $row, 'Nombre Alumno');
-                $mainSheet->setCellValue('G' . $row, 'Apellido Paterno');
-                $mainSheet->setCellValue('H' . $row, 'Apellido Materno');
+                $mainSheet->setCellValue('A' . $row, 'Título Evaluación');
+                $mainSheet->setCellValue('B' . $row, 'Campo Formativo');
+                $mainSheet->setCellValue('C' . $row, 'Fecha');
+                $mainSheet->setCellValue('D' . $row, 'MOMENTO');
+                $mainSheet->setCellValue('E' . $row, 'Nombre Alumno');
+                $mainSheet->setCellValue('F' . $row, 'Apellido Paterno');
+                $mainSheet->setCellValue('G' . $row, 'Apellido Materno');
 
                 // Agregar encabezados de criterios específicos de esta evaluación en la hoja principal
                 foreach ($criterios as $index => $criterio) {
-                    $columna = chr(ord($columnaInicial) + $index);
-                    $mainSheet->setCellValue($columna . $row, $criterio['nombre']);
+                    $columna = chr(ord('H') + $index);
+                    $porcentaje = isset($criterio['porcentaje']) && $criterio['porcentaje'] > 0 ? ' (' . $criterio['porcentaje'] . '%)' : '';
+                    $mainSheet->setCellValue($columna . $row, $criterio['nombre'] . $porcentaje);
                 }
 
                 // Columna para promedio (después del último criterio)
@@ -343,23 +375,22 @@ class Index extends Component
                         $alumno = $detalle->alumno;
 
                         // Datos de la evaluación en la hoja principal
-                        $mainSheet->setCellValue('A' . $row, $evaluacion->id);
-                        $mainSheet->setCellValue('B' . $row, $evaluacion->titulo);
-                        $mainSheet->setCellValue('C' . $row, optional($campoFormativo)->nombre ?? 'N/A');
-                        $mainSheet->setCellValue('D' . $row, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
-                        $mainSheet->setCellValue('E' . $row, $momento);
+                        $mainSheet->setCellValue('A' . $row, $evaluacion->titulo);
+                        $mainSheet->setCellValue('B' . $row, optional($campoFormativo)->nombre ?? 'N/A');
+                        $mainSheet->setCellValue('C' . $row, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
+                        $mainSheet->setCellValue('D' . $row, $momento);
 
                         // Datos del alumno en la hoja principal
-                        $mainSheet->setCellValue('F' . $row, $alumno ? $alumno->nombre : 'N/A');
-                        $mainSheet->setCellValue('G' . $row, $alumno ? $alumno->apellido_paterno : 'N/A');
-                        $mainSheet->setCellValue('H' . $row, $alumno ? $alumno->apellido_materno : 'N/A');
+                        $mainSheet->setCellValue('E' . $row, $alumno ? $alumno->nombre : 'N/A');
+                        $mainSheet->setCellValue('F' . $row, $alumno ? $alumno->apellido_paterno : 'N/A');
+                        $mainSheet->setCellValue('G' . $row, $alumno ? $alumno->apellido_materno : 'N/A');
 
                         // Criterios específicos de esta evaluación en la hoja principal
                         $sumaCriterios = 0;
                         $countCriterios = 0;
 
                         foreach ($criterios as $index => $criterioInfo) {
-                            $columna = chr(ord($columnaInicial) + $index);
+                            $columna = chr(ord('H') + $index);
                             $valor = '';
 
                             // Buscar calificación para este criterio
@@ -393,13 +424,12 @@ class Index extends Component
                     }
                 } else {
                     // Si la evaluación no tiene detalles, agregar una fila informativa en la hoja principal
-                    $mainSheet->setCellValue('A' . $row, $evaluacion->id);
-                    $mainSheet->setCellValue('B' . $row, $evaluacion->titulo);
-                    $mainSheet->setCellValue('C' . $row, optional($campoFormativo)->nombre ?? 'N/A');
-                    $mainSheet->setCellValue('D' . $row, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
-                    $mainSheet->setCellValue('E' . $row, $momento);
-                    $mainSheet->setCellValue('F' . $row, 'No hay alumnos evaluados');
-                    $mainSheet->mergeCells('F' . $row . ':' . $lastColumn . $row);
+                    $mainSheet->setCellValue('A' . $row, $evaluacion->titulo);
+                    $mainSheet->setCellValue('B' . $row, optional($campoFormativo)->nombre ?? 'N/A');
+                    $mainSheet->setCellValue('C' . $row, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
+                    $mainSheet->setCellValue('D' . $row, $momento);
+                    $mainSheet->setCellValue('E' . $row, 'No hay alumnos evaluados');
+                    $mainSheet->mergeCells('E' . $row . ':' . $lastColumn . $row);
 
                     $row++;
                 }
@@ -438,19 +468,19 @@ class Index extends Component
                 $sheet->setCellValue('E5', $momento);
 
                 // Establecer encabezados en la hoja individual (ahora comienza en fila 6)
-                $sheet->setCellValue('A6', 'ID Evaluación');
-                $sheet->setCellValue('B6', 'Título Evaluación');
-                $sheet->setCellValue('C6', 'Campo Formativo');
-                $sheet->setCellValue('D6', 'Fecha');
-                $sheet->setCellValue('E6', 'MOMENTO');
-                $sheet->setCellValue('F6', 'Nombre Alumno');
-                $sheet->setCellValue('G6', 'Apellido Paterno');
-                $sheet->setCellValue('H6', 'Apellido Materno');
+                $sheet->setCellValue('A6', 'Título Evaluación');
+                $sheet->setCellValue('B6', 'Campo Formativo');
+                $sheet->setCellValue('C6', 'Fecha');
+                $sheet->setCellValue('D6', 'MOMENTO');
+                $sheet->setCellValue('E6', 'Nombre Alumno');
+                $sheet->setCellValue('F6', 'Apellido Paterno');
+                $sheet->setCellValue('G6', 'Apellido Materno');
 
                 // Agregar encabezados de criterios específicos de esta evaluación en la hoja individual
                 foreach ($criterios as $index => $criterio) {
-                    $columna = chr(ord($columnaInicial) + $index);
-                    $sheet->setCellValue($columna . '6', $criterio['nombre']);
+                    $columna = chr(ord('H') + $index);
+                    $porcentaje = isset($criterio['porcentaje']) && $criterio['porcentaje'] > 0 ? ' (' . $criterio['porcentaje'] . '%)' : '';
+                    $sheet->setCellValue($columna . '6', $criterio['nombre'] . $porcentaje);
                 }
 
                 // Columna para promedio (después del último criterio) en la hoja individual
@@ -468,23 +498,22 @@ class Index extends Component
                         $alumno = $detalle->alumno;
 
                         // Datos de la evaluación en la hoja individual
-                        $sheet->setCellValue('A' . $sheetRow, $evaluacion->id);
-                        $sheet->setCellValue('B' . $sheetRow, $evaluacion->titulo);
-                        $sheet->setCellValue('C' . $sheetRow, optional($campoFormativo)->nombre ?? 'N/A');
-                        $sheet->setCellValue('D' . $sheetRow, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
-                        $sheet->setCellValue('E' . $sheetRow, $momento);
+                        $sheet->setCellValue('A' . $sheetRow, $evaluacion->titulo);
+                        $sheet->setCellValue('B' . $sheetRow, optional($campoFormativo)->nombre ?? 'N/A');
+                        $sheet->setCellValue('C' . $sheetRow, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
+                        $sheet->setCellValue('D' . $sheetRow, $momento);
 
                         // Datos del alumno en la hoja individual
-                        $sheet->setCellValue('F' . $sheetRow, $alumno ? $alumno->nombre : 'N/A');
-                        $sheet->setCellValue('G' . $sheetRow, $alumno ? $alumno->apellido_paterno : 'N/A');
-                        $sheet->setCellValue('H' . $sheetRow, $alumno ? $alumno->apellido_materno : 'N/A');
+                        $sheet->setCellValue('E' . $sheetRow, $alumno ? $alumno->nombre : 'N/A');
+                        $sheet->setCellValue('F' . $sheetRow, $alumno ? $alumno->apellido_paterno : 'N/A');
+                        $sheet->setCellValue('G' . $sheetRow, $alumno ? $alumno->apellido_materno : 'N/A');
 
                         // Criterios específicos de esta evaluación en la hoja individual
                         $sumaCriterios = 0;
                         $countCriterios = 0;
 
                         foreach ($criterios as $index => $criterioInfo) {
-                            $columna = chr(ord($columnaInicial) + $index);
+                            $columna = chr(ord('H') + $index);
                             $valor = '';
 
                             // Buscar calificación para este criterio
@@ -518,13 +547,12 @@ class Index extends Component
                     }
                 } else {
                     // Si la evaluación no tiene detalles, agregar una fila informativa en la hoja individual
-                    $sheet->setCellValue('A' . $sheetRow, $evaluacion->id);
-                    $sheet->setCellValue('B' . $sheetRow, $evaluacion->titulo);
-                    $sheet->setCellValue('C' . $sheetRow, optional($campoFormativo)->nombre ?? 'N/A');
-                    $sheet->setCellValue('D' . $sheetRow, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
-                    $sheet->setCellValue('E' . $sheetRow, $momento);
-                    $sheet->setCellValue('F' . $sheetRow, 'No hay alumnos evaluados');
-                    $sheet->mergeCells('F' . $sheetRow . ':' . $columnaPromedio . $sheetRow);
+                    $sheet->setCellValue('A' . $sheetRow, $evaluacion->titulo);
+                    $sheet->setCellValue('B' . $sheetRow, optional($campoFormativo)->nombre ?? 'N/A');
+                    $sheet->setCellValue('C' . $sheetRow, $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'N/A');
+                    $sheet->setCellValue('D' . $sheetRow, $momento);
+                    $sheet->setCellValue('E' . $sheetRow, 'No hay alumnos evaluados');
+                    $sheet->mergeCells('E' . $sheetRow . ':' . $columnaPromedio . $sheetRow);
 
                     $sheetRow++;
                 }
