@@ -33,6 +33,12 @@ new class extends Component
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('grupos.index')" :active="request()->routeIs('grupos.*')" wire:navigate>
+                        {{ __('Grupos') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('alumnos.index')" :active="request()->routeIs('alumnos.*')" wire:navigate>
+                        {{ __('Alumnos') }}
+                    </x-nav-link>
                     <x-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')" wire:navigate>
                         {{ __('Campos Formativos') }}
                     </x-nav-link>
@@ -86,6 +92,12 @@ new class extends Component
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
                 {{ __('Dashboard') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('grupos.index')" :active="request()->routeIs('grupos.*')" wire:navigate>
+                {{ __('Grupos') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('alumnos.index')" :active="request()->routeIs('alumnos.*')" wire:navigate>
+                {{ __('Alumnos') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')" wire:navigate>
                 {{ __('Campos Formativos') }}

@@ -35,7 +35,7 @@ class Index extends Component
         $this->fecha = date('Y-m-d');
 
         // Si hay un ciclo activo, seleccionarlo por defecto
-        $cicloActivo = Ciclo::where('activo', true)->first();
+        $cicloActivo = Ciclo::where('user_id', auth()->id())->where('activo', true)->first();
         if ($cicloActivo) {
             $this->ciclo_id = $cicloActivo->id;
         }
@@ -86,7 +86,7 @@ class Index extends Component
         $this->selectedCamposFormativos = [];
 
         // Mantener el ciclo activo si existe
-        $cicloActivo = Ciclo::where('activo', true)->first();
+        $cicloActivo = Ciclo::where('user_id', auth()->id())->where('activo', true)->first();
         if ($cicloActivo) {
             $this->ciclo_id = $cicloActivo->id;
         } else {
@@ -126,6 +126,7 @@ class Index extends Component
             'nombre' => $this->nombre,
             'fecha' => $this->fecha,
             'ciclo_id' => $this->ciclo_id,
+            'user_id' => auth()->id(),
         ];
 
         if ($this->rangoFechas) {
@@ -212,6 +213,7 @@ class Index extends Component
     public function render()
     {
         $query = Momento::with(['ciclo', 'camposFormativos'])
+            ->where('user_id', auth()->id())
             ->when($this->search, function ($q) {
                 return $q->where('nombre', 'like', '%' . $this->search . '%');
             })
@@ -221,7 +223,7 @@ class Index extends Component
             ->orderBy('fecha', 'desc');
 
         $momentos = $query->paginate(10);
-        $ciclos = Ciclo::orderBy('anio_inicio', 'desc')->get();
+        $ciclos = Ciclo::where('user_id', auth()->id())->orderBy('anio_inicio', 'desc')->get();
 
         return view('livewire.momentos.index', compact('momentos', 'ciclos'));
     }

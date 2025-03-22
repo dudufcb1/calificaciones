@@ -16,7 +16,8 @@ class Momento extends Model
         'fecha',
         'fecha_inicio',
         'fecha_fin',
-        'ciclo_id'
+        'ciclo_id',
+        'user_id'
     ];
 
     protected $casts = [
@@ -47,5 +48,13 @@ class Momento extends Model
     public function tieneRangoFechas(): bool
     {
         return !is_null($this->fecha_inicio) && !is_null($this->fecha_fin);
+    }
+
+    /**
+     * Obtener el usuario al que pertenece este momento
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

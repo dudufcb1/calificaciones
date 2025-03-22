@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Ciclo extends Model
 {
@@ -14,7 +15,8 @@ class Ciclo extends Model
         'nombre',
         'anio_inicio',
         'anio_fin',
-        'activo'
+        'activo',
+        'user_id'
     ];
 
     /**
@@ -23,6 +25,14 @@ class Ciclo extends Model
     public function momentos(): HasMany
     {
         return $this->hasMany(Momento::class);
+    }
+
+    /**
+     * Obtener el usuario al que pertenece este ciclo
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**

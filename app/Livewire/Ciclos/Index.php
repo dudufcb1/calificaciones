@@ -56,7 +56,7 @@ class Index extends Component
 
         // Si marcamos este ciclo como activo, desactivamos los demás
         if ($this->activo) {
-            Ciclo::where('activo', true)->update(['activo' => false]);
+            Ciclo::where('user_id', auth()->id())->where('activo', true)->update(['activo' => false]);
         }
 
         Ciclo::updateOrCreate(['id' => $this->ciclo_id], [
@@ -64,6 +64,7 @@ class Index extends Component
             'anio_inicio' => $this->anio_inicio,
             'anio_fin' => $this->anio_fin,
             'activo' => $this->activo,
+            'user_id' => auth()->id(),
         ]);
 
         $this->dispatch('notify', [
@@ -126,9 +127,12 @@ class Index extends Component
 
     public function render()
     {
-        $ciclos = Ciclo::where('nombre', 'like', '%' . $this->search . '%')
-            ->orWhere('anio_inicio', 'like', '%' . $this->search . '%')
-            ->orWhere('anio_fin', 'like', '%' . $this->search . '%')
+        $ciclos = Ciclo::where('user_id', auth()->id())
+            ->where(function($query) {
+                $query->where('nombre', 'like', '%' . $this->search . '%')
+                    ->orWhere('anio_inicio', 'like', '%' . $this->search . '%')
+                    ->orWhere('anio_fin', 'like', '%' . $this->search . '%');
+            })
             ->orderBy('anio_inicio', 'desc')
             ->paginate(10);
 

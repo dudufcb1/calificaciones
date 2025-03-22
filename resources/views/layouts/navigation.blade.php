@@ -146,20 +146,33 @@
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
 
-            <x-responsive-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')">
-                {{ __('Campos Formativos') }}
+            <x-responsive-nav-link :href="route('grupos.index')" :active="request()->routeIs('grupos.*')">
+                {{ __('Grupos') }}
             </x-responsive-nav-link>
 
             <x-responsive-nav-link :href="route('alumnos.index')" :active="request()->routeIs('alumnos.*')">
                 {{ __('Alumnos') }}
             </x-responsive-nav-link>
 
-            <x-responsive-nav-link :href="route('evaluaciones.index')" :active="request()->routeIs('evaluaciones.*')">
-                {{ __('Evaluaciones') }}
+            <x-responsive-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')">
+                {{ __('Campos Formativos') }}
             </x-responsive-nav-link>
 
-            <x-responsive-nav-link :href="route('grupos.index')" :active="request()->routeIs('grupos.*')">
-                {{ __('Grupos') }}
+            <!-- Sección de Ciclos/Momentos en modo responsive -->
+            <div class="pt-2 pb-3 space-y-1">
+                <div class="font-medium pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600">
+                    {{ __('Ciclos/Momentos') }}
+                </div>
+                <x-responsive-nav-link :href="route('ciclos.index')" :active="request()->routeIs('ciclos.index')">
+                    {{ __('Ciclos Escolares') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('momentos.index')" :active="request()->routeIs('momentos.index')">
+                    {{ __('Momentos Educativos') }}
+                </x-responsive-nav-link>
+            </div>
+
+            <x-responsive-nav-link :href="route('evaluaciones.index')" :active="request()->routeIs('evaluaciones.*')">
+                {{ __('Evaluaciones') }}
             </x-responsive-nav-link>
 
             <!-- Sección de Asistencia en modo responsive -->
@@ -181,19 +194,6 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('asistencia.configuracion')" :active="request()->routeIs('asistencia.configuracion')">
                     {{ __('Configuración') }}
-                </x-responsive-nav-link>
-            </div>
-
-            <!-- Sección de Ciclos/Momentos en modo responsive -->
-            <div class="pt-2 pb-3 space-y-1">
-                <div class="font-medium pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600">
-                    {{ __('Ciclos/Momentos') }}
-                </div>
-                <x-responsive-nav-link :href="route('ciclos.index')" :active="request()->routeIs('ciclos.index')">
-                    {{ __('Ciclos Escolares') }}
-                </x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('momentos.index')" :active="request()->routeIs('momentos.index')">
-                    {{ __('Momentos Educativos') }}
                 </x-responsive-nav-link>
             </div>
         </div>

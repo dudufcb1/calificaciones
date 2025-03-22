@@ -397,7 +397,7 @@
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                             </svg>
-                                            Aplicar a un rango de fechas
+                                            Aplicar a todos los días similares en un rango de fechas
                                         </button>
                                     </div>
 
@@ -438,10 +438,24 @@
                 @if($mostrandoModalRangoFechas)
                     <div class="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
                         <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-                            <h3 class="text-lg font-bold mb-4">Aplicar a un rango de fechas</h3>
+                            <h3 class="text-lg font-bold mb-4">Aplicar a días específicos en un rango de fechas</h3>
 
                             <div class="mb-4">
-                                <p class="text-sm text-gray-600 mb-4">Seleccione el rango de fechas para aplicar los campos formativos seleccionados:</p>
+                                <p class="text-sm text-gray-600 mb-4">Seleccione el día de la semana y el rango de fechas para aplicar los campos formativos seleccionados:</p>
+
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Día de la semana:</label>
+                                    <select wire:model="selectedDayOfWeek" class="w-full border-gray-300 rounded-md shadow-sm">
+                                        <option value="">Seleccione un día</option>
+                                        <option value="1">Lunes</option>
+                                        <option value="2">Martes</option>
+                                        <option value="3">Miércoles</option>
+                                        <option value="4">Jueves</option>
+                                        <option value="5">Viernes</option>
+                                        <option value="6">Sábado</option>
+                                        <option value="0">Domingo</option>
+                                    </select>
+                                </div>
 
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
@@ -449,8 +463,6 @@
                                         <input
                                             type="date"
                                             wire:model="fechaInicioRango"
-                                            min="{{ Carbon\Carbon::createFromDate($anio, $mes, 1)->format('Y-m-d') }}"
-                                            max="{{ Carbon\Carbon::createFromDate($anio, $mes, count($diasDelMes))->format('Y-m-d') }}"
                                             class="w-full border-gray-300 rounded-md shadow-sm"
                                         >
                                     </div>
@@ -459,8 +471,6 @@
                                         <input
                                             type="date"
                                             wire:model="fechaFinRango"
-                                            min="{{ Carbon\Carbon::createFromDate($anio, $mes, 1)->format('Y-m-d') }}"
-                                            max="{{ Carbon\Carbon::createFromDate($anio, $mes, count($diasDelMes))->format('Y-m-d') }}"
                                             class="w-full border-gray-300 rounded-md shadow-sm"
                                         >
                                     </div>
@@ -476,7 +486,7 @@
                                 </button>
                                 <button
                                     wire:click="aplicarARangoFechas"
-                                    wire:confirm="¿Está seguro que desea aplicar esta configuración al rango de fechas seleccionado?"
+                                    wire:confirm="¿Está seguro que desea aplicar esta configuración a los días seleccionados en el rango de fechas?"
                                     class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                                 >
                                     Aplicar

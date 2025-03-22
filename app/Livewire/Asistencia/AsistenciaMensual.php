@@ -47,6 +47,7 @@ class AsistenciaMensual extends Component
     public $mostrandoModalRangoFechas = false;
     public $fechaInicioRango = null;
     public $fechaFinRango = null;
+    public $selectedDayOfWeek = null;
     public $confirmandoBorrado = false;
     public $confirmandoBorradoFinal = false;
 
@@ -469,6 +470,13 @@ class AsistenciaMensual extends Component
         $this->fechaInicioRango = Carbon::createFromDate($this->anio, $this->mes, 1)->format('Y-m-d');
         $this->fechaFinRango = Carbon::createFromDate($this->anio, $this->mes, 1)->endOfMonth()->format('Y-m-d');
 
+        // Si viene de un día seleccionado, usamos ese día de la semana por defecto
+        if ($this->diaSeleccionadoParaCampos) {
+            $this->selectedDayOfWeek = Carbon::parse($this->diaSeleccionadoParaCampos)->dayOfWeek;
+        } else {
+            $this->selectedDayOfWeek = null;
+        }
+
         $this->mostrandoModalRangoFechas = true;
     }
 
@@ -480,6 +488,7 @@ class AsistenciaMensual extends Component
         $this->mostrandoModalRangoFechas = false;
         $this->fechaInicioRango = null;
         $this->fechaFinRango = null;
+        $this->selectedDayOfWeek = null;
     }
 
     /**
@@ -503,6 +512,14 @@ class AsistenciaMensual extends Component
             return;
         }
 
+        if ($this->selectedDayOfWeek === null) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar un día de la semana'
+            ]);
+            return;
+        }
+
         // Validar que la fecha de inicio sea menor o igual que la fecha de fin
         $fechaInicio = Carbon::parse($this->fechaInicioRango);
         $fechaFin = Carbon::parse($this->fechaFinRango);
@@ -518,9 +535,9 @@ class AsistenciaMensual extends Component
         $diasActualizados = 0;
 
         for ($fecha = $fechaInicio; $fecha->lte($fechaFin); $fecha->addDay()) {
-            // Verificar que la fecha esté en el mes actual y no sea un día no laborable
-            if ($fecha->month == $this->mes && $fecha->year == $this->anio &&
-                !in_array($fecha->format('Y-m-d'), $this->diasNoLaborables)) {
+            // Solo procesar los días que coinciden con el día de la semana seleccionado
+            // y que no sean días no laborables
+            if ($fecha->dayOfWeek == $this->selectedDayOfWeek && !in_array($fecha->format('Y-m-d'), $this->diasNoLaborables)) {
                 $fechaStr = $fecha->format('Y-m-d');
 
                 // Eliminar campos formativos existentes para este día
@@ -551,12 +568,25 @@ class AsistenciaMensual extends Component
         $this->mostrandoModalRangoFechas = false;
         $this->fechaInicioRango = null;
         $this->fechaFinRango = null;
+        $this->selectedDayOfWeek = null;
         $this->diaSeleccionadoParaCampos = null;
         $this->camposSeleccionados = [];
 
+        $nombresDiasSemana = [
+            0 => 'domingos',
+            1 => 'lunes',
+            2 => 'martes',
+            3 => 'miércoles',
+            4 => 'jueves',
+            5 => 'viernes',
+            6 => 'sábados',
+        ];
+
+        $diaSemanaTexto = $nombresDiasSemana[$this->selectedDayOfWeek] ?? 'días';
+
         $this->dispatch('notify', [
             'type' => 'success',
-            'message' => "Configuración aplicada a $diasActualizados días"
+            'message' => "Configuración aplicada a $diasActualizados $diaSemanaTexto en el rango seleccionado"
         ]);
     }
 

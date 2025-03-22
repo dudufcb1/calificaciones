@@ -133,13 +133,11 @@
                         Panel
                     </a>
 
-                    <a href="{{ route('campos-formativos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('campos-formativos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                    <a href="{{ route('grupos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('grupos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path d="M12 14l9-5-9-5-9 5 9 5z" />
-                            <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
-                        Campos Formativos
+                        Grupos
                     </a>
 
                     <a href="{{ route('alumnos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('alumnos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
@@ -149,25 +147,13 @@
                         Alumnos
                     </a>
 
-                    <a href="{{ route('evaluaciones.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('evaluaciones.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                    <a href="{{ route('campos-formativos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('campos-formativos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                            <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
                         </svg>
-                        Evaluaciones
-                    </a>
-
-                    <a href="{{ route('grupos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('grupos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        Grupos
-                    </a>
-
-                    <a href="{{ route('asistencia.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('asistencia.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        Asistencia
+                        Campos Formativos
                     </a>
 
                     <a href="{{ route('ciclos.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('ciclos.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
@@ -182,6 +168,20 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                         Momentos Educativos
+                    </a>
+
+                    <a href="{{ route('evaluaciones.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('evaluaciones.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        Evaluaciones
+                    </a>
+
+                    <a href="{{ route('asistencia.index') }}" class="flex items-center px-2 py-3 mt-2 text-sm {{ request()->routeIs('asistencia.*') ? 'bg-indigo-800 text-white rounded-lg' : 'text-indigo-200 hover:bg-indigo-800 hover:text-white rounded-lg transition-colors duration-150' }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Asistencia
                     </a>
 
                     @if(auth()->user()->isAdmin())
