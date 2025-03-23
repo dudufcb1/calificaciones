@@ -1,0 +1,361 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Esquema de Datos de Alumnos para IA",
+    "description": "Estructura de datos para permitir a un agente de IA acceder a la información académica completa de los alumnos",
+    "type": "object",
+    "properties": {
+        "success": {
+            "type": "boolean",
+            "description": "Indica si la solicitud fue exitosa"
+        },
+        "data": {
+            "type": "object",
+            "description": "Datos principales de la respuesta",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "ID del usuario (docente) propietario de los datos"
+                },
+                "user_name": {
+                    "type": "string",
+                    "description": "Nombre del usuario (docente) propietario de los datos"
+                },
+                "periodo": {
+                    "type": "object",
+                    "description": "Período de tiempo que abarca la consulta",
+                    "properties": {
+                        "inicio": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Fecha de inicio del período (YYYY-MM-DD)"
+                        },
+                        "fin": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Fecha de fin del período (YYYY-MM-DD)"
+                        }
+                    },
+                    "required": [
+                        "inicio",
+                        "fin"
+                    ]
+                },
+                "alumnos": {
+                    "type": "array",
+                    "description": "Lista de alumnos con su información académica completa",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "description": "ID único del alumno"
+                            },
+                            "nombre": {
+                                "type": "string",
+                                "description": "Nombre(s) del alumno"
+                            },
+                            "apellido_paterno": {
+                                "type": "string",
+                                "description": "Apellido paterno del alumno"
+                            },
+                            "apellido_materno": {
+                                "type": "string",
+                                "description": "Apellido materno del alumno"
+                            },
+                            "nombre_completo": {
+                                "type": "string",
+                                "description": "Nombre completo del alumno (nombre + apellidos)"
+                            },
+                            "curp": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "CURP del alumno"
+                            },
+                            "fecha_nacimiento": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date",
+                                "description": "Fecha de nacimiento del alumno (YYYY-MM-DD)"
+                            },
+                            "genero": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Género del alumno"
+                            },
+                            "grupo": {
+                                "type": "object",
+                                "description": "Información del grupo al que pertenece el alumno",
+                                "properties": {
+                                    "id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "ID del grupo"
+                                    },
+                                    "nombre": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Nombre del grupo"
+                                    }
+                                }
+                            },
+                            "estado": {
+                                "type": "string",
+                                "description": "Estado actual del alumno (ej. activo, inactivo)"
+                            },
+                            "tutor": {
+                                "type": "object",
+                                "description": "Información de contacto del tutor del alumno",
+                                "properties": {
+                                    "nombre": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Nombre completo del tutor"
+                                    },
+                                    "email": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "email",
+                                        "description": "Correo electrónico del tutor"
+                                    },
+                                    "telefono": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Teléfono de contacto del tutor"
+                                    }
+                                }
+                            },
+                            "direccion": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Dirección del alumno"
+                            },
+                            "telefono_emergencia": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Teléfono de emergencia del alumno"
+                            },
+                            "alergias": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Alergias o condiciones médicas del alumno"
+                            },
+                            "observaciones": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "Observaciones generales sobre el alumno"
+                            },
+                            "situacion_academica": {
+                                "type": "object",
+                                "description": "Información sobre el rendimiento académico del alumno",
+                                "properties": {
+                                    "promedio_general": {
+                                        "type": "number",
+                                        "description": "Promedio general del alumno en el período"
+                                    },
+                                    "campos_formativos": {
+                                        "type": "array",
+                                        "description": "Desglose de evaluaciones por campo formativo",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "description": "ID del campo formativo"
+                                                },
+                                                "nombre": {
+                                                    "type": "string",
+                                                    "description": "Nombre del campo formativo"
+                                                },
+                                                "promedio": {
+                                                    "type": "number",
+                                                    "description": "Promedio del alumno en este campo formativo"
+                                                },
+                                                "evaluaciones": {
+                                                    "type": "array",
+                                                    "description": "Lista de evaluaciones en este campo formativo",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "description": "ID de la evaluación"
+                                                            },
+                                                            "titulo": {
+                                                                "type": "string",
+                                                                "description": "Título de la evaluación"
+                                                            },
+                                                            "fecha": {
+                                                                "type": "string",
+                                                                "format": "date",
+                                                                "description": "Fecha de la evaluación"
+                                                            },
+                                                            "calificacion": {
+                                                                "type": "number",
+                                                                "description": "Calificación obtenida por el alumno"
+                                                            },
+                                                            "observaciones": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ],
+                                                                "description": "Observaciones específicas sobre esta evaluación"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "titulo",
+                                                            "fecha",
+                                                            "calificacion"
+                                                        ]
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "nombre",
+                                                "promedio",
+                                                "evaluaciones"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "promedio_general",
+                                    "campos_formativos"
+                                ]
+                            },
+                            "asistencias": {
+                                "type": "object",
+                                "description": "Información sobre la asistencia del alumno",
+                                "properties": {
+                                    "total": {
+                                        "type": "integer",
+                                        "description": "Total de días de asistencia registrados"
+                                    },
+                                    "presentes": {
+                                        "type": "integer",
+                                        "description": "Número de días que el alumno asistió"
+                                    },
+                                    "faltas": {
+                                        "type": "integer",
+                                        "description": "Número de días que el alumno faltó sin justificación"
+                                    },
+                                    "justificadas": {
+                                        "type": "integer",
+                                        "description": "Número de faltas justificadas"
+                                    },
+                                    "porcentaje_asistencia": {
+                                        "type": "number",
+                                        "description": "Porcentaje de asistencia (incluye justificadas)"
+                                    },
+                                    "detalle": {
+                                        "type": "array",
+                                        "description": "Detalle de cada registro de asistencia",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "fecha": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "description": "Fecha del registro de asistencia"
+                                                },
+                                                "estado": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "asistio",
+                                                        "falta",
+                                                        "justificada"
+                                                    ],
+                                                    "description": "Estado de la asistencia"
+                                                },
+                                                "justificacion": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Justificación de la falta, si aplica"
+                                                },
+                                                "observaciones": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Observaciones sobre esta asistencia"
+                                                }
+                                            },
+                                            "required": [
+                                                "fecha",
+                                                "estado"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "total",
+                                    "presentes",
+                                    "faltas",
+                                    "justificadas",
+                                    "porcentaje_asistencia",
+                                    "detalle"
+                                ]
+                            },
+                            "campos_sin_rellenar": {
+                                "type": "array",
+                                "description": "Lista de campos que están vacíos o sin completar",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "nombre",
+                            "apellido_paterno",
+                            "apellido_materno",
+                            "nombre_completo",
+                            "grupo",
+                            "estado",
+                            "situacion_academica",
+                            "asistencias",
+                            "campos_sin_rellenar"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "user_id",
+                "user_name",
+                "periodo",
+                "alumnos"
+            ]
+        }
+    },
+    "required": [
+        "success",
+        "data"
+    ]
+}

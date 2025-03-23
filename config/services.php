@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | AI Agent Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuración para el agente de IA que accede a los datos de los alumnos.
+    | El token debe ser un valor seguro y debe configurarse en el archivo .env.
+    |
+    */
+    'ai_agent' => [
+        'token' => env('AI_AGENT_TOKEN'),
+    ],
+
 ];
