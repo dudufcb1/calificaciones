@@ -11,13 +11,13 @@
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+-   [Simple, fast routing engine](https://laravel.com/docs/routing).
+-   [Powerful dependency injection container](https://laravel.com/docs/container).
+-   Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
+-   Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+-   Database agnostic [schema migrations](https://laravel.com/docs/migrations).
+-   [Robust background job processing](https://laravel.com/docs/queues).
+-   [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
@@ -35,19 +35,19 @@ We would like to extend our thanks to the following sponsors for funding Laravel
 
 ### Premium Partners
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+-   **[Vehikl](https://vehikl.com/)**
+-   **[Tighten Co.](https://tighten.co)**
+-   **[WebReinvent](https://webreinvent.com/)**
+-   **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
+-   **[64 Robots](https://64robots.com)**
+-   **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
+-   **[Cyber-Duck](https://cyber-duck.co.uk)**
+-   **[DevSquad](https://devsquad.com/hire-laravel-developers)**
+-   **[Jump24](https://jump24.co.uk)**
+-   **[Redberry](https://redberry.international/laravel/)**
+-   **[Active Logic](https://activelogic.com)**
+-   **[byte5](https://byte5.de)**
+-   **[OP.GG](https://op.gg)**
 
 ## Contributing
 
@@ -62,5 +62,104 @@ In order to ensure that the Laravel community is welcoming to all, please review
 If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
 ## License
+
+The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+# Aplicación de Calificaciones
+
+## Uso del Servicio de Asistencia
+
+La aplicación ahora cuenta con un servicio dedicado para calcular estadísticas de asistencia, lo que permite reutilizar esta lógica en cualquier parte de la aplicación.
+
+### Calcular Estadísticas de Asistencia
+
+```php
+use App\Services\AsistenciaService;
+
+// Crear una instancia del servicio
+$asistenciaService = new AsistenciaService();
+
+// Calcular estadísticas para un alumno en un rango de fechas
+$estadisticas = $asistenciaService->calcularEstadisticas(
+    $alumnoId, // Puede ser un ID único o un array de IDs
+    '2023-10-01', // Fecha de inicio
+    '2023-10-31', // Fecha de fin
+    $diasNoLaborables // Array opcional de fechas no laborables
+);
+
+// O para un mes completo
+$estadisticasMes = $asistenciaService->obtenerEstadisticasMensuales(
+    $alumnoId,
+    10, // Mes (1-12)
+    2023, // Año
+    $diasNoLaborables // Array opcional de fechas no laborables
+);
+
+// Ejemplo de uso para un grupo completo
+$alumnosIds = $grupo->alumnos->pluck('id')->toArray();
+$estadisticasGrupo = $asistenciaService->calcularEstadisticas(
+    $alumnosIds,
+    $fechaInicio,
+    $fechaFin
+);
+
+// Para calcular estadísticas por campo formativo
+$estadisticasPorCampo = $asistenciaService->calcularEstadisticasPorCampoFormativo(
+    $alumnoId,
+    $fechaInicio,
+    $fechaFin,
+    $diasNoLaborables,
+    $camposFormativosPorDia // Array asociativo [fecha => [campo_formativo_ids]]
+);
+```
+
+### Estructura de Datos Devuelta
+
+El servicio devuelve un array con la siguiente estructura:
+
+```php
+[
+    $alumnoId => [
+        'alumno' => $objetoAlumno, // Modelo del alumno
+        'total_dias' => 20, // Total de días laborables
+        'asistencias' => 18, // Número de asistencias
+        'inasistencias' => 2, // Número de inasistencias
+        'justificadas' => 0, // Número de inasistencias justificadas
+        'porcentaje_asistencia' => 90.00, // Porcentaje de asistencia (redondeado a 2 decimales)
+        'porcentaje_inasistencia' => 10.00, // Porcentaje de inasistencia
+    ],
+    // Más alumnos si se proporcionó un array de IDs
+]
+```
+
+Para las estadísticas por campo formativo:
+
+```php
+[
+    $alumnoId => [
+        $campoFormativoId => [
+            'campo' => $objetoCampoFormativo, // Modelo del campo formativo
+            'total_dias' => 5, // Total de días en que se impartió este campo
+            'asistencias' => 4, // Número de asistencias a este campo
+            'inasistencias' => 1, // Número de inasistencias a este campo
+            'justificadas' => 0, // Número de inasistencias justificadas
+            'porcentaje_asistencia' => 80.00, // Porcentaje de asistencia a este campo
+            'porcentaje_inasistencia' => 20.00, // Porcentaje de inasistencia
+        ],
+        // Más campos formativos
+    ],
+    // Más alumnos
+]
+```
+
+### Beneficios
+
+-   **Reutilización de código**: Evita duplicar la lógica de cálculo en diferentes partes de la aplicación
+-   **Mantenibilidad**: Los cambios en la lógica de cálculo solo deben realizarse en un lugar
+-   **Consistencia**: Asegura que los cálculos sean consistentes en toda la aplicación
+-   **Flexibilidad**: Permite calcular estadísticas para diferentes períodos y agrupaciones
+-   **Rendimiento**: Optimiza consultas al calcular estadísticas para múltiples alumnos en una sola operación
+
+## Licencia
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

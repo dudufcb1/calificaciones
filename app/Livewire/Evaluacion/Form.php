@@ -10,6 +10,8 @@ use App\Models\Evaluacion;
 use App\Models\EvaluacionDetalle;
 use App\Models\Grupo;
 use App\Models\Momento;
+use App\Services\AsistenciaService;
+use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
@@ -32,6 +34,15 @@ class Form extends Component
     public $autoSaveMessage = '';
     public $mostrarSeleccionAlumnos = false;
     public $selectedCampoFormativo = null;
+
+    // Propiedades para el modal de porcentajes de asistencia
+    public $mostrarModalAsistencia = false;
+    public $porcentajesAsistencia = [];
+    public $criterioSeleccionadoId = null;
+    public $inicioMes;
+    public $finMes;
+    public $columnasConPorcentajes = []; // Almacena IDs de columnas con porcentajes ya aplicados
+    public $columnaAsignadaPorcentajes = false; // Indica si la columna seleccionada ya tiene porcentajes
 
     protected $rules = [
         'momentoId' => 'required|exists:momentos,id',
@@ -73,6 +84,9 @@ class Form extends Component
         $this->momentoId = $evaluacion->momento_id;
         $this->grupoId = $evaluacion->grupo_id;
         $this->campoFormativoId = $evaluacion->campo_formativo_id;
+
+        // Cargar el campo formativo seleccionado para mostrarlo en el modal
+        $this->selectedCampoFormativo = $evaluacion->campoFormativo->toArray();
 
         if ($this->momentoId) {
             $this->updatedMomentoId();
@@ -720,6 +734,267 @@ class Form extends Component
             'momentos' => $momentos,
             'showCriterios' => $showCriterios,
             'showAlumnos' => $showAlumnos,
+        ]);
+    }
+
+    /**
+     * Muestra el modal para aplicar porcentajes de asistencia
+     */
+    public function mostrarModalAsistencias()
+    {
+        // Verificar que estemos en modo edición y que haya alumnos y criterios cargados
+        if (!$this->editing || empty($this->alumnosEvaluados) || empty($this->criterios)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se pueden aplicar porcentajes de asistencia en este momento.'
+            ]);
+            return;
+        }
+
+        // Obtener el campo formativo actual
+        $campoFormativo = CampoFormativo::find($this->campoFormativoId);
+        if (!$campoFormativo) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se encontró el campo formativo seleccionado.'
+            ]);
+            return;
+        }
+
+        // Guardar el campo formativo seleccionado para mostrarlo en el modal
+        $this->selectedCampoFormativo = $campoFormativo->toArray();
+
+        // Definir el mes actual para consultar asistencias (por defecto el último mes)
+        $fecha = Carbon::now();
+        $this->inicioMes = $fecha->startOfMonth()->format('Y-m-d');
+        $this->finMes = $fecha->endOfMonth()->format('Y-m-d');
+
+        // Obtener los porcentajes de asistencia para este campo formativo
+        $this->obtenerPorcentajesAsistencia();
+
+        // Analizar qué columnas ya tienen porcentajes de asistencia aplicados
+        $this->detectarColumnasConPorcentajes();
+
+        // Restablecer selección
+        $this->criterioSeleccionadoId = null;
+        $this->columnaAsignadaPorcentajes = false;
+
+        // Mostrar el modal
+        $this->mostrarModalAsistencia = true;
+    }
+
+    /**
+     * Detecta qué columnas ya tienen porcentajes de asistencia aplicados
+     */
+    public function detectarColumnasConPorcentajes()
+    {
+        // Este es un método simplificado para detectar columnas con porcentajes ya aplicados
+        // En una implementación real, podrías guardar esta información en la base de datos
+
+        $this->columnasConPorcentajes = [];
+
+        // Simular la detección analizando si los valores coinciden con los porcentajes de asistencia
+        if (!empty($this->alumnosEvaluados) && !empty($this->porcentajesAsistencia)) {
+            foreach ($this->criterios as $criterioIndex => $criterio) {
+                $coincidencias = 0;
+                $totalAlumnos = count($this->alumnosEvaluados);
+
+                foreach ($this->alumnosEvaluados as $alumnoIndex => $alumno) {
+                    $alumnoId = $alumno['alumno_id'];
+
+                    // Verificar si este alumno tiene porcentaje de asistencia
+                    if (isset($this->porcentajesAsistencia[$alumnoId])) {
+                        $porcentajeAsistencia = round($this->porcentajesAsistencia[$alumnoId]['porcentaje']);
+                        $calificacionActual = intval($alumno['calificaciones'][$criterioIndex]['valor']);
+
+                        // Si la calificación coincide con el porcentaje de asistencia
+                        if ($calificacionActual == $porcentajeAsistencia && $porcentajeAsistencia > 0) {
+                            $coincidencias++;
+                        }
+                    }
+                }
+
+                // Si más del 80% de los alumnos tienen calificaciones que coinciden con sus porcentajes
+                // asumimos que esta columna ya tiene porcentajes aplicados
+                if ($totalAlumnos > 0 && ($coincidencias / $totalAlumnos) >= 0.8) {
+                    $this->columnasConPorcentajes[] = $criterio['id'];
+                }
+            }
+        }
+    }
+
+    /**
+     * Se ejecuta cuando se cambia la selección de criterio
+     */
+    public function updatedCriterioSeleccionadoId()
+    {
+        if ($this->criterioSeleccionadoId) {
+            // Verificar si esta columna ya tiene porcentajes asignados
+            $this->columnaAsignadaPorcentajes = in_array($this->criterioSeleccionadoId, $this->columnasConPorcentajes);
+        } else {
+            $this->columnaAsignadaPorcentajes = false;
+        }
+    }
+
+    /**
+     * Resetea la asignación de porcentajes para una columna
+     */
+    public function resetearAsignacionPorcentajes()
+    {
+        if (!$this->criterioSeleccionadoId) {
+            return;
+        }
+
+        // Quitar este criterio de la lista de columnas con porcentajes
+        $this->columnasConPorcentajes = array_filter($this->columnasConPorcentajes, function($id) {
+            return $id != $this->criterioSeleccionadoId;
+        });
+
+        $this->columnaAsignadaPorcentajes = false;
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'La asignación de porcentajes se ha eliminado. Ahora puede volver a aplicar porcentajes a esta columna.'
+        ]);
+    }
+
+    /**
+     * Aplica los porcentajes de asistencia a la columna seleccionada
+     */
+    public function aplicarPorcentajesAsistencia()
+    {
+        // Verificar que se haya seleccionado un criterio
+        if (!$this->criterioSeleccionadoId) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Debe seleccionar una columna para aplicar los porcentajes.'
+            ]);
+            return;
+        }
+
+        // Verificar si esta columna ya tiene porcentajes asignados
+        if ($this->columnaAsignadaPorcentajes) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Esta columna ya tiene porcentajes de asistencia aplicados. Resetee la asignación primero.'
+            ]);
+            return;
+        }
+
+        // Buscar el índice del criterio seleccionado
+        $criterioIndex = null;
+        foreach ($this->criterios as $index => $criterio) {
+            if ($criterio['id'] == $this->criterioSeleccionadoId) {
+                $criterioIndex = $index;
+                break;
+            }
+        }
+
+        if ($criterioIndex === null) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se encontró la columna seleccionada.'
+            ]);
+            return;
+        }
+
+        // Aplicar los porcentajes de asistencia a la columna seleccionada
+        $totalActualizados = 0;
+
+        foreach ($this->porcentajesAsistencia as $alumnoId => $datos) {
+            $alumnoIndex = $datos['index'];
+            $porcentaje = $datos['porcentaje'];
+
+            // Actualizar la calificación con el porcentaje de asistencia
+            $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$criterioIndex]['valor'] = round($porcentaje);
+
+            $totalActualizados++;
+        }
+
+        // Recalcular promedios
+        $this->recalcularTodos();
+
+        // Marcar esta columna como asignada
+        $this->columnasConPorcentajes[] = $this->criterioSeleccionadoId;
+        $this->columnaAsignadaPorcentajes = true;
+
+        // Guardar automáticamente
+        $this->autosave();
+
+        // Notificar al usuario
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Se aplicaron porcentajes de asistencia a {$totalActualizados} alumnos."
+        ]);
+    }
+
+    /**
+     * Obtiene los porcentajes de asistencia de los alumnos para el campo formativo actual
+     */
+    public function obtenerPorcentajesAsistencia()
+    {
+        // Obtener IDs de los alumnos
+        $alumnoIds = collect($this->alumnosEvaluados)->pluck('alumno_id')->toArray();
+
+        // Usar el servicio de asistencia para obtener los porcentajes
+        $asistenciaService = new AsistenciaService();
+
+        // Obtener porcentajes para el campo formativo específico
+        $estadisticasPorCampo = $asistenciaService->calcularEstadisticasPorCampoFormativo(
+            $alumnoIds,
+            $this->inicioMes,
+            $this->finMes
+        );
+
+        // Formatear los resultados para mostrarlos en el modal
+        $this->porcentajesAsistencia = [];
+
+        foreach ($this->alumnosEvaluados as $index => $alumno) {
+            $alumnoId = $alumno['alumno_id'];
+
+            // Verificar si tenemos estadísticas para este alumno y este campo formativo
+            if (isset($estadisticasPorCampo[$alumnoId][$this->campoFormativoId])) {
+                $stats = $estadisticasPorCampo[$alumnoId][$this->campoFormativoId];
+                $this->porcentajesAsistencia[$alumnoId] = [
+                    'nombre' => $alumno['nombre'] ?? $alumno['nombre_completo'] ?? "Alumno #{$alumnoId}",
+                    'porcentaje' => $stats['porcentaje_asistencia'],
+                    'total_dias' => $stats['total_dias'],
+                    'asistencias' => $stats['asistencias'],
+                    'inasistencias' => $stats['inasistencias'],
+                    'index' => $index // Guardamos el índice para aplicar después
+                ];
+            } else {
+                // Si no hay estadísticas, mostrar un valor predeterminado
+                $this->porcentajesAsistencia[$alumnoId] = [
+                    'nombre' => $alumno['nombre'] ?? $alumno['nombre_completo'] ?? "Alumno #{$alumnoId}",
+                    'porcentaje' => 0,
+                    'total_dias' => 0,
+                    'asistencias' => 0,
+                    'inasistencias' => 0,
+                    'index' => $index
+                ];
+            }
+        }
+    }
+
+    /**
+     * Cierra el modal de porcentajes de asistencia
+     */
+    public function cerrarModalAsistencia()
+    {
+        $this->mostrarModalAsistencia = false;
+    }
+
+    /**
+     * Actualiza el rango de fechas y recalcula los porcentajes
+     */
+    public function actualizarPorcentajesAsistencia()
+    {
+        $this->obtenerPorcentajesAsistencia();
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'Porcentajes de asistencia actualizados correctamente.'
         ]);
     }
 }

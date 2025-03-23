@@ -6,6 +6,7 @@ use App\Models\Alumno;
 use App\Models\Asistencia;
 use App\Models\ConfiguracionAsistencia;
 use App\Models\Grupo;
+use App\Services\AsistenciaService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -109,25 +110,66 @@ class Reporte extends Component
             ->get();
     }
 
-    public function calcularEstadisticas($alumno_id)
+    private function calcularEstadisticas($alumno_id)
     {
-        $asistencias = $this->obtenerAsistencias($alumno_id);
+        $asistenciaService = new AsistenciaService();
 
-        $totalDias = $asistencias->count();
-        $totalAsistencias = $asistencias->where('estado', 'asistio')->count();
-        $totalFaltas = $asistencias->where('estado', 'falta')->count();
-        $totalJustificadas = $asistencias->where('estado', 'justificada')->count();
+        // Determinar el rango de fechas según el tipo de reporte
+        if ($this->tipoReporte === 'mes') {
+            $fechaInicio = Carbon::create($this->anio, $this->mes, 1)->format('Y-m-d');
+            $fechaFin = Carbon::create($this->anio, $this->mes, 1)->endOfMonth()->format('Y-m-d');
+        } else {
+            $fechaInicio = $this->fechaInicio;
+            $fechaFin = $this->fechaFin;
+        }
 
-        $porcentajeAsistencia = $totalDias > 0
-            ? round(($totalAsistencias / $totalDias) * 100, 2)
-            : 0;
+        // Obtener configuración de días no laborables (aquí podrías adaptar según tu lógica)
+        $diasNoLaborables = [];
+        $configuracionMes = $this->obtenerConfiguracionMes();
+        if ($configuracionMes && $configuracionMes->es_periodo_vacacional) {
+            // Si es periodo vacacional, marcar todos los días como no laborables
+            $fechaActual = Carbon::parse($fechaInicio);
+            while ($fechaActual->lte(Carbon::parse($fechaFin))) {
+                $diasNoLaborables[] = $fechaActual->format('Y-m-d');
+                $fechaActual->addDay();
+            }
+        } else {
+            // Considerar fines de semana como no laborables por defecto
+            $fechaActual = Carbon::parse($fechaInicio);
+            while ($fechaActual->lte(Carbon::parse($fechaFin))) {
+                if ($fechaActual->isWeekend()) {
+                    $diasNoLaborables[] = $fechaActual->format('Y-m-d');
+                }
+                $fechaActual->addDay();
+            }
+        }
 
+        // Obtener estadísticas usando el servicio
+        $resultados = $asistenciaService->calcularEstadisticas(
+            $alumno_id,
+            $fechaInicio,
+            $fechaFin,
+            $diasNoLaborables
+        );
+
+        // Formatear resultado para mantener compatibilidad con el código existente
+        if (isset($resultados[$alumno_id])) {
+            return [
+                'total_dias' => $resultados[$alumno_id]['total_dias'],
+                'total_asistencias' => $resultados[$alumno_id]['asistencias'],
+                'total_faltas' => $resultados[$alumno_id]['inasistencias'],
+                'total_justificadas' => $resultados[$alumno_id]['justificadas'],
+                'porcentaje_asistencia' => $resultados[$alumno_id]['porcentaje_asistencia'],
+            ];
+        }
+
+        // En caso de no encontrar resultados, devolver valores predeterminados
         return [
-            'total_dias' => $totalDias,
-            'total_asistencias' => $totalAsistencias,
-            'total_faltas' => $totalFaltas,
-            'total_justificadas' => $totalJustificadas,
-            'porcentaje_asistencia' => $porcentajeAsistencia,
+            'total_dias' => 0,
+            'total_asistencias' => 0,
+            'total_faltas' => 0,
+            'total_justificadas' => 0,
+            'porcentaje_asistencia' => 0,
         ];
     }
 
@@ -136,15 +178,73 @@ class Reporte extends Component
         $alumnos = $this->obtenerAlumnos();
         $configuracionMes = $this->obtenerConfiguracionMes();
 
+        $asistenciaService = new AsistenciaService();
         $reporteData = [];
 
-        foreach ($alumnos as $alumno) {
-            $estadisticas = $this->calcularEstadisticas($alumno->id);
+        if (count($alumnos) > 0) {
+            // Determinar rango de fechas
+            if ($this->tipoReporte === 'mes') {
+                $fechaInicio = Carbon::create($this->anio, $this->mes, 1)->format('Y-m-d');
+                $fechaFin = Carbon::create($this->anio, $this->mes, 1)->endOfMonth()->format('Y-m-d');
+            } else {
+                $fechaInicio = $this->fechaInicio;
+                $fechaFin = $this->fechaFin;
+            }
 
-            $reporteData[] = [
-                'alumno' => $alumno,
-                'estadisticas' => $estadisticas,
-            ];
+            // Obtener días no laborables
+            $diasNoLaborables = [];
+            if ($configuracionMes && $configuracionMes->es_periodo_vacacional) {
+                $fechaActual = Carbon::parse($fechaInicio);
+                while ($fechaActual->lte(Carbon::parse($fechaFin))) {
+                    $diasNoLaborables[] = $fechaActual->format('Y-m-d');
+                    $fechaActual->addDay();
+                }
+            } else {
+                $fechaActual = Carbon::parse($fechaInicio);
+                while ($fechaActual->lte(Carbon::parse($fechaFin))) {
+                    if ($fechaActual->isWeekend()) {
+                        $diasNoLaborables[] = $fechaActual->format('Y-m-d');
+                    }
+                    $fechaActual->addDay();
+                }
+            }
+
+            // Obtener estadísticas para todos los alumnos de una sola vez
+            $alumnoIds = $alumnos->pluck('id')->toArray();
+            $estadisticasAlumnos = $asistenciaService->calcularEstadisticas(
+                $alumnoIds,
+                $fechaInicio,
+                $fechaFin,
+                $diasNoLaborables
+            );
+
+            foreach ($alumnos as $alumno) {
+                if (isset($estadisticasAlumnos[$alumno->id])) {
+                    $datos = $estadisticasAlumnos[$alumno->id];
+                    $reporteData[] = [
+                        'alumno' => $alumno,
+                        'estadisticas' => [
+                            'total_dias' => $datos['total_dias'],
+                            'total_asistencias' => $datos['asistencias'],
+                            'total_faltas' => $datos['inasistencias'],
+                            'total_justificadas' => $datos['justificadas'],
+                            'porcentaje_asistencia' => $datos['porcentaje_asistencia'],
+                        ]
+                    ];
+                } else {
+                    // Datos por defecto si no hay estadísticas
+                    $reporteData[] = [
+                        'alumno' => $alumno,
+                        'estadisticas' => [
+                            'total_dias' => 0,
+                            'total_asistencias' => 0,
+                            'total_faltas' => 0,
+                            'total_justificadas' => 0,
+                            'porcentaje_asistencia' => 0,
+                        ]
+                    ];
+                }
+            }
         }
 
         return view('livewire.asistencia.reporte', [

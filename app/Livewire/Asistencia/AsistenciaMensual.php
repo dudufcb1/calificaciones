@@ -9,6 +9,7 @@ use App\Models\Ciclo;
 use App\Models\DiaConCampoFormativo;
 use App\Models\Grupo;
 use App\Models\Momento;
+use App\Services\AsistenciaService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -662,122 +663,48 @@ class AsistenciaMensual extends Component
             return;
         }
 
-        $this->estadisticasPorCampoFormativo = [];
+        // Usar el nuevo servicio para calcular las estadísticas por campo formativo
+        $asistenciaService = new AsistenciaService();
 
-        // Inicializar estadísticas para cada campo formativo
-        foreach ($this->camposFormativos as $campo) {
-            foreach ($this->alumnos as $alumno) {
-                if (!isset($this->estadisticasPorCampoFormativo[$alumno->id])) {
-                    $this->estadisticasPorCampoFormativo[$alumno->id] = [];
-                }
+        $alumnoIds = $this->alumnos->pluck('id')->toArray();
 
-                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id] = [
-                    'total_dias' => 0,
-                    'asistencias' => 0,
-                    'inasistencias' => 0,
-                    'justificadas' => 0,
-                    'porcentaje_asistencia' => 0,
-                    'porcentaje_inasistencia' => 0,
-                ];
-            }
-        }
-
-        // Recorrer los días del mes
-        foreach ($this->diasDelMes as $dia) {
-            $fecha = $dia['fecha'];
-
-            // No contar días no laborables
-            if (in_array($fecha, $this->diasNoLaborables)) {
-                continue;
-            }
-
-            // Obtener campos formativos para este día
-            $camposFormativosDia = $this->camposFormativosPorDia[$fecha] ?? [];
-
-            // Si no hay campos formativos para este día, continuar
-            if (empty($camposFormativosDia)) {
-                continue;
-            }
-
-            // Calcular estadísticas para cada alumno y campo formativo
-            foreach ($this->alumnos as $alumno) {
-                $estado = $this->asistencias[$alumno->id][$fecha] ?? 'falta';
-
-                foreach ($camposFormativosDia as $campoFormativoId) {
-                    // Incrementar el contador total_dias
-                    $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['total_dias']++;
-
-                    // Incrementar el contador correspondiente según el estado
-                    if ($estado == 'asistio') {
-                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['asistencias']++;
-                    } elseif ($estado == 'justificada') {
-                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['justificadas']++;
-                    } else {
-                        $this->estadisticasPorCampoFormativo[$alumno->id][$campoFormativoId]['inasistencias']++;
-                    }
-                }
-            }
-        }
-
-        // Calcular porcentajes
-        foreach ($this->alumnos as $alumno) {
-            foreach ($this->camposFormativos as $campo) {
-                $totalDias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['total_dias'];
-                $asistencias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['asistencias'];
-                $inasistencias = $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['inasistencias'];
-
-                // Evitar división por cero
-                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['porcentaje_asistencia'] =
-                    $totalDias > 0 ? round(($asistencias / $totalDias) * 100, 2) : 0;
-
-                $this->estadisticasPorCampoFormativo[$alumno->id][$campo->id]['porcentaje_inasistencia'] =
-                    $totalDias > 0 ? round(($inasistencias / $totalDias) * 100, 2) : 0;
-            }
-        }
+        $this->estadisticasPorCampoFormativo = $asistenciaService->obtenerEstadisticasPorCampoFormativoMensuales(
+            $alumnoIds,
+            $this->mes,
+            $this->anio,
+            $this->diasNoLaborables,
+            $this->camposFormativosPorDia
+        );
     }
 
     public function calcularEstadisticas()
     {
+        $asistenciaService = new AsistenciaService();
+
+        if (empty($this->grupo_id) || empty($this->alumnos)) {
+            $this->estadisticas = [];
+            return;
+        }
+
+        $alumnoIds = $this->alumnos->pluck('id')->toArray();
+
+        $resultados = $asistenciaService->obtenerEstadisticasMensuales(
+            $alumnoIds,
+            $this->mes,
+            $this->anio,
+            $this->diasNoLaborables
+        );
+
+        // Formatear resultados para la estructura esperada
         $this->estadisticas = [];
-
-        foreach ($this->alumnos as $alumno) {
-            $totalDias = 0;
-            $asistencias = 0;
-            $inasistencias = 0;
-            $justificadas = 0;
-
-            foreach ($this->diasDelMes as $dia) {
-                $fecha = $dia['fecha'];
-
-                // No contar días no laborables
-                if (in_array($fecha, $this->diasNoLaborables)) {
-                    continue;
-                }
-
-                $totalDias++;
-
-                $estado = $this->asistencias[$alumno->id][$fecha] ?? 'falta';
-
-                if ($estado == 'asistio') {
-                    $asistencias++;
-                } elseif ($estado == 'justificada') {
-                    $justificadas++;
-                } else {
-                    $inasistencias++;
-                }
-            }
-
-            // Evitar división por cero
-            $porcentajeAsistencia = $totalDias > 0 ? round(($asistencias / $totalDias) * 100, 2) : 0;
-            $porcentajeInasistencia = $totalDias > 0 ? round(($inasistencias / $totalDias) * 100, 2) : 0;
-
-            $this->estadisticas[$alumno->id] = [
-                'total_dias' => $totalDias,
-                'asistencias' => $asistencias,
-                'inasistencias' => $inasistencias,
-                'justificadas' => $justificadas,
-                'porcentaje_asistencia' => $porcentajeAsistencia,
-                'porcentaje_inasistencia' => $porcentajeInasistencia,
+        foreach ($resultados as $alumnoId => $datos) {
+            $this->estadisticas[$alumnoId] = [
+                'total_dias' => $datos['total_dias'],
+                'asistencias' => $datos['asistencias'],
+                'inasistencias' => $datos['inasistencias'],
+                'justificadas' => $datos['justificadas'],
+                'porcentaje_asistencia' => $datos['porcentaje_asistencia'],
+                'porcentaje_inasistencia' => $datos['porcentaje_inasistencia'],
             ];
         }
     }
