@@ -43,6 +43,7 @@ class Form extends Component
     public $finMes;
     public $columnasConPorcentajes = []; // Almacena IDs de columnas con porcentajes ya aplicados
     public $columnaAsignadaPorcentajes = false; // Indica si la columna seleccionada ya tiene porcentajes
+    public $hayColumnaConPorcentajes = false; // Indica si ya hay alguna columna con porcentajes aplicados
 
     protected $rules = [
         'momentoId' => 'required|exists:momentos,id',
@@ -779,6 +780,9 @@ class Form extends Component
         $this->criterioSeleccionadoId = null;
         $this->columnaAsignadaPorcentajes = false;
 
+        // Verificar si ya hay alguna columna con porcentajes aplicados
+        $this->hayColumnaConPorcentajes = count($this->columnasConPorcentajes) > 0;
+
         // Mostrar el modal
         $this->mostrarModalAsistencia = true;
     }
@@ -798,6 +802,7 @@ class Form extends Component
             foreach ($this->criterios as $criterioIndex => $criterio) {
                 $coincidencias = 0;
                 $totalAlumnos = count($this->alumnosEvaluados);
+                $totalConAsistencia = 0;
 
                 foreach ($this->alumnosEvaluados as $alumnoIndex => $alumno) {
                     $alumnoId = $alumno['alumno_id'];
@@ -807,16 +812,20 @@ class Form extends Component
                         $porcentajeAsistencia = round($this->porcentajesAsistencia[$alumnoId]['porcentaje']);
                         $calificacionActual = intval($alumno['calificaciones'][$criterioIndex]['valor']);
 
-                        // Si la calificación coincide con el porcentaje de asistencia
-                        if ($calificacionActual == $porcentajeAsistencia && $porcentajeAsistencia > 0) {
-                            $coincidencias++;
+                        if ($porcentajeAsistencia > 0) {
+                            $totalConAsistencia++;
+
+                            // Si la calificación coincide con el porcentaje de asistencia
+                            if ($calificacionActual == $porcentajeAsistencia) {
+                                $coincidencias++;
+                            }
                         }
                     }
                 }
 
-                // Si más del 80% de los alumnos tienen calificaciones que coinciden con sus porcentajes
+                // Si más del 80% de los alumnos con asistencia tienen calificaciones que coinciden con sus porcentajes
                 // asumimos que esta columna ya tiene porcentajes aplicados
-                if ($totalAlumnos > 0 && ($coincidencias / $totalAlumnos) >= 0.8) {
+                if ($totalConAsistencia > 0 && ($coincidencias / $totalConAsistencia) >= 0.8) {
                     $this->columnasConPorcentajes[] = $criterio['id'];
                 }
             }
@@ -841,16 +850,20 @@ class Form extends Component
      */
     public function resetearAsignacionPorcentajes()
     {
-        if (!$this->criterioSeleccionadoId) {
-            return;
+        // Si hay un criterio seleccionado, solo reset ese criterio
+        if ($this->criterioSeleccionadoId) {
+            // Quitar este criterio de la lista de columnas con porcentajes
+            $this->columnasConPorcentajes = array_filter($this->columnasConPorcentajes, function($id) {
+                return $id != $this->criterioSeleccionadoId;
+            });
+        } else {
+            // Si no hay un criterio seleccionado pero hay una columna con porcentajes,
+            // resetear todas las columnas
+            $this->columnasConPorcentajes = [];
         }
 
-        // Quitar este criterio de la lista de columnas con porcentajes
-        $this->columnasConPorcentajes = array_filter($this->columnasConPorcentajes, function($id) {
-            return $id != $this->criterioSeleccionadoId;
-        });
-
         $this->columnaAsignadaPorcentajes = false;
+        $this->hayColumnaConPorcentajes = count($this->columnasConPorcentajes) > 0;
 
         $this->dispatch('notify', [
             'type' => 'success',
@@ -868,6 +881,15 @@ class Form extends Component
             $this->dispatch('notify', [
                 'type' => 'error',
                 'message' => 'Debe seleccionar una columna para aplicar los porcentajes.'
+            ]);
+            return;
+        }
+
+        // Verificar si ya hay alguna columna con porcentajes y esta no es la misma
+        if ($this->hayColumnaConPorcentajes && !in_array($this->criterioSeleccionadoId, $this->columnasConPorcentajes)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Ya existe una columna con porcentajes aplicados. Debe eliminar esa asignación primero.'
             ]);
             return;
         }
@@ -917,9 +939,13 @@ class Form extends Component
         // Marcar esta columna como asignada
         $this->columnasConPorcentajes[] = $this->criterioSeleccionadoId;
         $this->columnaAsignadaPorcentajes = true;
+        $this->hayColumnaConPorcentajes = true;
 
         // Guardar automáticamente
         $this->autosave();
+
+        // Cerrar el modal después de aplicar
+        $this->mostrarModalAsistencia = false;
 
         // Notificar al usuario
         $this->dispatch('notify', [
