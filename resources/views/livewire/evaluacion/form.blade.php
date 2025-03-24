@@ -449,7 +449,7 @@
                                         <option value="">Seleccione una columna...</option>
                                         @foreach($criterios ?? [] as $criterio)
                                             <option value="{{ $criterio['id'] }}"
-                                                {{ in_array($criterio['id'], $columnasConPorcentajes ?? []) ? 'class="bg-green-100 font-semibold"' : '' }}
+                                                @class(['bg-green-100 font-semibold' => in_array($criterio['id'], $columnasConPorcentajes ?? [])])
                                                 {{ $hayColumnaConPorcentajes && !in_array($criterio['id'], $columnasConPorcentajes ?? []) ? 'disabled' : '' }}>
                                                 {{ $criterio['nombre'] }} {{ in_array($criterio['id'], $columnasConPorcentajes ?? []) ? '(ya asignado)' : '' }}
                                             </option>

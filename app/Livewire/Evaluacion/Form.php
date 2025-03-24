@@ -66,6 +66,10 @@ class Form extends Component
     {
         $this->evaluacionId = $evaluacionId;
         $this->fecha_evaluacion = now()->format('Y-m-d');
+        
+        // Inicializar fechas para el modal de asistencias
+        $this->inicioMes = now()->startOfMonth()->format('Y-m-d');
+        $this->finMes = now()->endOfMonth()->format('Y-m-d');
 
         if ($evaluacionId) {
             $this->editing = true;
@@ -1112,6 +1116,20 @@ class Form extends Component
             ]);
             return;
         }
+        
+        // Asegurarse que hay datos en porcentajesAsistencia
+        if (empty($this->porcentajesAsistencia)) {
+            $this->obtenerPorcentajesAsistencia();
+            
+            // Si sigue vacío después de obtener los datos, mostrar error
+            if (empty($this->porcentajesAsistencia)) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No hay datos de asistencia disponibles para aplicar.'
+                ]);
+                return;
+            }
+        }
 
         // Buscar el índice del criterio seleccionado
         $criterioIndex = null;
@@ -1163,22 +1181,55 @@ class Form extends Component
 
         // Aplicar los porcentajes de asistencia a la columna seleccionada
         $totalActualizados = 0;
+        $porcentajesAplicados = [];
 
         foreach ($this->porcentajesAsistencia as $alumnoId => $datos) {
-            $alumnoIndex = $datos['index'];
-            $porcentaje = $datos['porcentaje'];
+            $alumnoIndex = $datos['index'] ?? null;
+            $porcentaje = $datos['porcentaje'] ?? 0;
+            
+            // Verificar que el índice del alumno sea válido
+            if ($alumnoIndex === null || !isset($this->alumnosEvaluados[$alumnoIndex])) {
+                continue;
+            }
+            
+            // Verificar que el índice del criterio sea válido para este alumno
+            if (!isset($this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$criterioIndex])) {
+                continue;
+            }
 
+            // Guardar el porcentaje para debug
+            $porcentajesAplicados[] = [
+                'alumno' => $datos['nombre'],
+                'porcentaje' => $porcentaje,
+                'alumno_index' => $alumnoIndex,
+                'criterio_index' => $criterioIndex,
+            ];
+
+            // Asegurarse que el porcentaje sea un número positivo
+            $valorAplicar = max(0, round($porcentaje));
+            
             // Actualizar la calificación con el porcentaje de asistencia
-            $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$criterioIndex]['valor'] = round($porcentaje);
+            $this->alumnosEvaluados[$alumnoIndex]['calificaciones'][$criterioIndex]['valor'] = $valorAplicar;
 
             $totalActualizados++;
+        }
+
+        // Si no se actualizó ningún alumno, mostrar un error
+        if ($totalActualizados === 0) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se pudo aplicar los porcentajes a ningún alumno. Intente recalcular los porcentajes.'
+            ]);
+            return;
         }
 
         // Recalcular promedios
         $this->recalcularTodos();
 
         // Marcar esta columna como asignada
-        $this->columnasConPorcentajes[] = $this->criterioSeleccionadoId;
+        if (!in_array($this->criterioSeleccionadoId, $this->columnasConPorcentajes)) {
+            $this->columnasConPorcentajes[] = $this->criterioSeleccionadoId;
+        }
         $this->columnaAsignadaPorcentajes = true;
         $this->hayColumnaConPorcentajes = true;
 
@@ -1198,7 +1249,7 @@ class Form extends Component
         // Cerrar el modal después de aplicar
         $this->mostrarModalAsistencia = false;
 
-        // Notificar al usuario
+        // Notificar al usuario con detalles
         $this->dispatch('notify', [
             'type' => 'success',
             'message' => "Se aplicaron porcentajes de asistencia a {$totalActualizados} alumnos."
@@ -1212,6 +1263,25 @@ class Form extends Component
     {
         // Obtener IDs de los alumnos
         $alumnoIds = collect($this->alumnosEvaluados)->pluck('alumno_id')->toArray();
+        
+        if (empty($alumnoIds)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No hay alumnos cargados para calcular asistencias.'
+            ]);
+            return;
+        }
+        
+        // Asegurarse que las fechas están inicializadas
+        if (empty($this->inicioMes)) {
+            // Por defecto, usar el primer día del mes actual
+            $this->inicioMes = now()->startOfMonth()->format('Y-m-d');
+        }
+        
+        if (empty($this->finMes)) {
+            // Por defecto, usar el último día del mes actual
+            $this->finMes = now()->endOfMonth()->format('Y-m-d');
+        }
 
         // Asegurar que las fechas estén inicializadas
         if (empty($this->inicioMes) || empty($this->finMes)) {
@@ -1222,12 +1292,33 @@ class Form extends Component
 
         // Usar el servicio de asistencia para obtener los porcentajes
         $asistenciaService = new AsistenciaService();
+        
+        // Preparar un array de campos formativos por día para el período seleccionado
+        // Esto es necesario para que el servicio sepa qué días debe considerar para cada campo formativo
+        $fechaInicio = $this->inicioMes;
+        $fechaFin = $this->finMes;
+        
+        // Crear un array de camposFormativosPorDia con el campoFormativoId actual para todos los días del período
+        $camposFormativosPorDia = [];
+        $fechaActual = \Carbon\Carbon::parse($fechaInicio);
+        $fechaFinal = \Carbon\Carbon::parse($fechaFin);
+        
+        while ($fechaActual->lte($fechaFinal)) {
+            $fechaStr = $fechaActual->format('Y-m-d');
+            // Agregar el campo formativo actual para cada día (excepto fines de semana)
+            if (!$fechaActual->isWeekend()) {
+                $camposFormativosPorDia[$fechaStr] = [$this->campoFormativoId];
+            }
+            $fechaActual->addDay();
+        }
 
         // Obtener porcentajes para el campo formativo específico
         $estadisticasPorCampo = $asistenciaService->calcularEstadisticasPorCampoFormativo(
             $alumnoIds,
             $this->inicioMes,
-            $this->finMes
+            $this->finMes,
+            [], // días no laborables (se considerarán fines de semana por defecto)
+            $camposFormativosPorDia
         );
 
         // Formatear los resultados para mostrarlos en el modal
@@ -1258,6 +1349,14 @@ class Form extends Component
                     'index' => $index
                 ];
             }
+        }
+        
+        // Si no hay datos después de todo, mostrar un mensaje
+        if (empty($this->porcentajesAsistencia)) {
+            $this->dispatch('notify', [
+                'type' => 'warning',
+                'message' => 'No se encontraron datos de asistencia para el período seleccionado.'
+            ]);
         }
     }
 
