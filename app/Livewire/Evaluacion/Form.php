@@ -14,6 +14,11 @@ use App\Services\AsistenciaService;
 use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 #[Layout('layouts.app')]
 class Form extends Component
@@ -1379,6 +1384,438 @@ class Form extends Component
             'type' => 'success',
             'message' => 'Porcentajes de asistencia actualizados correctamente.'
         ]);
+    }
+
+    /**
+     * Exporta la evaluación actual a Excel
+     */
+    public function exportarExcel()
+    {
+        \Log::info('====== MÉTODO exportarExcel EN FORM INICIADO ======');
+        \Log::info('Form - evaluacionId: ' . ($this->evaluacionId ?? 'NULL') . ' - Timestamp: ' . now()->toDateTimeString());
+        \Log::info('Form - editing: ' . ($this->editing ? 'true' : 'false'));
+        \Log::info('Form - campoFormativoId: ' . ($this->campoFormativoId ?? 'NULL'));
+        \Log::info('Form - grupoId: ' . ($this->grupoId ?? 'NULL'));
+        \Log::info('Form - Cantidad de alumnos: ' . count($this->alumnosEvaluados));
+
+        // Notificar para depuración visual 
+        $this->dispatch('notify', [
+            'type' => 'info',
+            'message' => 'Iniciando exportación a Excel desde Form...'
+        ]);
+
+        try {
+            // Si no estamos en modo edición o no hay evaluación, no podemos exportar
+            if (!$this->editing || !$this->evaluacionId) {
+                \Log::warning('Form Excel Export - No se puede exportar: No estamos en modo edición o no hay ID de evaluación');
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No se puede exportar: Primero guarde la evaluación'
+                ]);
+                return;
+            }
+
+            // Verificar si tenemos alumnos para exportar
+            if (empty($this->alumnosEvaluados)) {
+                \Log::warning('Form Excel Export - No hay alumnos para exportar');
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No hay alumnos para exportar'
+                ]);
+                return;
+            }
+
+            $currentUser = auth()->user();
+            \Log::info('Form Excel Export - Usuario: ' . $currentUser->name . ' (ID: ' . $currentUser->id . ')');
+
+            // Verificar si estamos en modo trial y si hay más de 10 registros
+            $trialMode = env('APP_TRIAL_MODE', true);
+            $userIsTrial = $currentUser->trial ?? true; // Asumir trial si no se especifica
+            $needsConfirmation = $trialMode && $userIsTrial && count($this->alumnosEvaluados) > 10;
+
+            \Log::info('Form Excel Export - Trial mode: ' . ($trialMode ? 'true' : 'false'));
+            \Log::info('Form Excel Export - User is trial: ' . ($userIsTrial ? 'true' : 'false'));
+            \Log::info('Form Excel Export - Needs confirmation: ' . ($needsConfirmation ? 'true' : 'false'));
+
+            if ($needsConfirmation) {
+                // Mostrar confirmación para usuario trial que intenta exportar más de 10 registros
+                \Log::info('Form Excel Export - Mostrando diálogo de confirmación para trial');
+                $this->dispatch('trial-excel-export');
+                return;
+            }
+
+            // Buscar la evaluación en la base de datos
+            $evaluacion = \App\Models\Evaluacion::findOrFail($this->evaluacionId);
+            \Log::info('Form Excel Export - Evaluación encontrada: ' . $evaluacion->id . ' - ' . $evaluacion->titulo);
+
+            // Si la evaluación no está guardada completamente, intentaremos hacer un autosave
+            if (!$evaluacion->campoFormativo || !$evaluacion->momento_id || !$evaluacion->grupo_id) {
+                \Log::warning('Form Excel Export - Evaluación incompleta, intentando autosave');
+                try {
+                    $this->autosave();
+                    // Recargar la evaluación después del autosave
+                    $evaluacion = \App\Models\Evaluacion::findOrFail($this->evaluacionId);
+                } catch (\Exception $e) {
+                    \Log::error('Form Excel Export - Error en autosave: ' . $e->getMessage());
+                }
+            }
+
+            // Determinar si se deben limitar los registros
+            $limitarRegistros = $trialMode && $userIsTrial;
+
+            // Informar al usuario sobre la limitación
+            if ($limitarRegistros) {
+                \Log::info('Form Excel Export - Aplicando límite de 10 registros (modo trial)');
+                $this->dispatch('notify', [
+                    'type' => 'warning',
+                    'message' => 'En modo Trial, la exportación se limita a 10 registros'
+                ]);
+            }
+
+            // Verificar si existe la plantilla - asegurar que se usan separadores de ruta correctos
+            $templatePath = str_replace('/', DIRECTORY_SEPARATOR, storage_path('app/templates/evaluacion_template.xlsx'));
+            $templateExists = file_exists($templatePath);
+            
+            \Log::info('Form Excel Export - Verificando plantilla en: ' . $templatePath);
+            \Log::info('Form Excel Export - Plantilla existe: ' . ($templateExists ? 'SÍ' : 'NO'));
+
+            if (!$templateExists) {
+                \Log::warning('Form Excel Export - Plantilla no encontrada en: ' . $templatePath . ' - Usando método alternativo sin plantilla');
+                
+                try {
+                    // Intentar generar en disco temporal primero para verificar si hay problemas
+                    $tempResult = $this->exportarExcelSinPlantilla($evaluacion, $currentUser->name, $limitarRegistros);
+                    
+                    \Log::info('Form Excel Export - exportarExcelSinPlantilla ejecutado con éxito');
+                    
+                    if (!$tempResult) {
+                        \Log::error('Form Excel Export - exportarExcelSinPlantilla devolvió NULL o false');
+                        throw new \Exception('El método de exportación sin plantilla falló al generar el archivo');
+                    }
+                    
+                    return $tempResult;
+                } catch (\Exception $innerEx) {
+                    \Log::error('Form Excel Export - Error en exportarExcelSinPlantilla: ' . $innerEx->getMessage());
+                    \Log::error($innerEx->getTraceAsString());
+                    
+                    $this->dispatch('notify', [
+                        'type' => 'error',
+                        'message' => 'Error en exportación sin plantilla: ' . $innerEx->getMessage()
+                    ]);
+                    
+                    return null;
+                }
+            }
+
+            // Si la plantilla existe, usar el método normal de exportación
+            \Log::info('Form Excel Export - Redirigiendo a ruta de exportación: evaluaciones/' . $evaluacion->id . '/excel');
+            return redirect()->route('evaluaciones.excel', ['evaluacionId' => $evaluacion->id]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Form Excel Export - Error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al iniciar exportación: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Método alternativo para exportar sin plantilla
+     */
+    public function exportarExcelSinPlantilla($evaluacion, $nombreDocente, $limitarRegistros = false)
+    {
+        \Log::info('====== MÉTODO exportarExcelSinPlantilla INICIADO ======');
+        \Log::info('Evaluación ID: ' . $evaluacion->id . ' - Nombre docente: ' . $nombreDocente);
+        \Log::info('Limitar registros: ' . ($limitarRegistros ? 'Sí' : 'No'));
+        
+        try {
+            // Verificar que PhpSpreadsheet esté disponible
+            if (!class_exists(Spreadsheet::class)) {
+                \Log::error('ExportarExcelSinPlantilla - Error crítico: La clase Spreadsheet no está disponible');
+                throw new \Exception('La biblioteca PhpSpreadsheet no está disponible');
+            }
+            
+            \Log::info('ExportarExcelSinPlantilla - PhpSpreadsheet disponible, creando archivo...');
+            
+            // Crear un nuevo objeto Spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Evaluación');
+            
+            \Log::info('ExportarExcelSinPlantilla - Spreadsheet inicializado, configurando datos básicos...');
+            
+            // Información básica de la evaluación
+            $sheet->setCellValue('A1', 'EVALUACIÓN');
+            $sheet->setCellValue('A3', 'Título:');
+            $sheet->setCellValue('B3', $evaluacion->titulo);
+            $sheet->setCellValue('A4', 'Campo Formativo:');
+            $sheet->setCellValue('B4', $evaluacion->campoFormativo ? $evaluacion->campoFormativo->nombre : 'No especificado');
+            $sheet->setCellValue('A5', 'Fecha:');
+            $sheet->setCellValue('B5', $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('d/m/Y') : 'No especificada');
+            $sheet->setCellValue('A6', 'Momento:');
+            $sheet->setCellValue('B6', $evaluacion->momentoObj ? $evaluacion->momentoObj->nombre : 'No especificado');
+            $sheet->setCellValue('A7', 'Grupo:');
+            $sheet->setCellValue('B7', $evaluacion->grupo ? $evaluacion->grupo->nombre : 'No especificado');
+            $sheet->setCellValue('A8', 'Docente:');
+            $sheet->setCellValue('B8', $nombreDocente);
+            
+            // Formato de encabezado
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+            $sheet->getStyle('A3:A8')->getFont()->setBold(true);
+            
+            \Log::info('ExportarExcelSinPlantilla - Datos básicos configurados, procesando criterios...');
+            
+            // Criterios de evaluación
+            $criterios = $evaluacion->campoFormativo ? $evaluacion->campoFormativo->criterios()->orderBy('orden')->get() : collect([]);
+            \Log::info('ExportarExcelSinPlantilla - ' . $criterios->count() . ' criterios encontrados');
+            
+            if ($criterios->count() > 0) {
+                $sheet->setCellValue('A10', 'CRITERIOS DE EVALUACIÓN');
+                $sheet->getStyle('A10')->getFont()->setBold(true);
+                
+                $sheet->setCellValue('A11', 'Criterio');
+                $sheet->setCellValue('B11', 'Descripción');
+                $sheet->setCellValue('C11', 'Porcentaje');
+                
+                $row = 12;
+                foreach ($criterios as $criterio) {
+                    $sheet->setCellValue('A' . $row, $criterio->nombre);
+                    $sheet->setCellValue('B' . $row, $criterio->descripcion);
+                    $sheet->setCellValue('C' . $row, $criterio->porcentaje . '%');
+                    $row++;
+                }
+                
+                // Aplicar bordes a la tabla de criterios
+                $sheet->getStyle('A11:C' . ($row - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                // Aplicar color de fondo al encabezado
+                $sheet->getStyle('A11:C11')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
+            }
+            
+            \Log::info('ExportarExcelSinPlantilla - Criterios procesados, procesando alumnos...');
+            
+            // Alumnos evaluados
+            $alumnosStartRow = $criterios->count() > 0 ? ($row + 2) : 12;
+            $sheet->setCellValue('A' . ($alumnosStartRow - 1), 'ALUMNOS EVALUADOS');
+            $sheet->getStyle('A' . ($alumnosStartRow - 1))->getFont()->setBold(true);
+            
+            // Encabezado de la tabla de alumnos
+            $sheet->setCellValue('A' . $alumnosStartRow, 'Alumno');
+            
+            // Agregar encabezados para cada criterio
+            $col = 'B';
+            foreach ($criterios as $criterio) {
+                $sheet->setCellValue($col . $alumnosStartRow, $criterio->nombre);
+                $col++;
+            }
+            
+            // Agregar encabezado para promedio
+            $sheet->setCellValue($col . $alumnosStartRow, 'Promedio');
+            $promedioCol = $col;
+            
+            // Obtener todos los detalles de alumnos para esta evaluación
+            $detalles = $evaluacion->detalles()->with(['alumno', 'criterios'])->get();
+            \Log::info('ExportarExcelSinPlantilla - ' . $detalles->count() . ' detalles/alumnos encontrados');
+            
+            // Limitar detalles si estamos en modo trial
+            if ($limitarRegistros && $detalles->count() > 10) {
+                $detalles = $detalles->take(10);
+                \Log::info('ExportarExcelSinPlantilla - Limitando a 10 registros de ' . $evaluacion->detalles->count() . ' totales');
+            }
+            
+            // Llenar los datos de alumnos
+            $row = $alumnosStartRow + 1;
+            foreach ($detalles as $detalle) {
+                $nombreAlumno = $detalle->alumno ? $detalle->alumno->nombre_completo : 'Alumno #' . $detalle->alumno_id;
+                $sheet->setCellValue('A' . $row, $nombreAlumno);
+                
+                // Llenar calificaciones para cada criterio
+                $col = 'B';
+                foreach ($criterios as $criterio) {
+                    $calificacion = $detalle->criterios->firstWhere('id', $criterio->id);
+                    $valor = $calificacion ? $calificacion->pivot->calificacion : 0;
+                    $sheet->setCellValue($col . $row, $valor);
+                    $col++;
+                }
+                
+                // Llenar promedio
+                $sheet->setCellValue($promedioCol . $row, $detalle->promedio_final);
+                
+                // Aplicar color según el promedio
+                if ($detalle->promedio_final >= 70) {
+                    $sheet->getStyle($promedioCol . $row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('C6EFCE');
+                } else {
+                    $sheet->getStyle($promedioCol . $row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFC7CE');
+                }
+                
+                $row++;
+            }
+            
+            \Log::info('ExportarExcelSinPlantilla - Datos de alumnos procesados, finalizando formato...');
+            
+            // Aplicar bordes a la tabla de alumnos
+            $lastCol = $promedioCol;
+            $sheet->getStyle('A' . $alumnosStartRow . ':' . $lastCol . ($row - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            // Aplicar color de fondo al encabezado
+            $sheet->getStyle('A' . $alumnosStartRow . ':' . $lastCol . $alumnosStartRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
+            
+            // Auto-ajustar el ancho de las columnas
+            foreach (range('A', $lastCol) as $columnID) {
+                $sheet->getColumnDimension($columnID)->setAutoSize(true);
+            }
+            
+            // Si estamos en modo trial, agregar una nota al final
+            if ($limitarRegistros && $evaluacion->detalles->count() > 10) {
+                $row += 2;
+                $sheet->setCellValue('A' . $row, 'Nota: En modo Trial, la exportación está limitada a 10 registros de ' . $evaluacion->detalles->count() . ' totales.');
+                $sheet->getStyle('A' . $row)->getFont()->setItalic(true);
+            }
+            
+            // Crear el archivo temporal
+            $tempDir = storage_path('app/temp');
+            if (!file_exists($tempDir)) {
+                \Log::info('ExportarExcelSinPlantilla - Creando directorio temporal: ' . $tempDir);
+                if (!mkdir($tempDir, 0755, true)) {
+                    \Log::error('ExportarExcelSinPlantilla - No se pudo crear el directorio temporal');
+                    throw new \Exception("No se pudo crear el directorio temporal: " . $tempDir);
+                }
+            }
+            
+            // Usar separadores de rutas adecuados
+            $tempFile = str_replace('/', DIRECTORY_SEPARATOR, $tempDir . '/evaluacion_' . $evaluacion->id . '_' . time() . '.xlsx');
+            \Log::info('ExportarExcelSinPlantilla - Guardando archivo en: ' . $tempFile);
+            
+            $writer = new Xlsx($spreadsheet);
+            
+            try {
+                $writer->save($tempFile);
+                
+                // Verificar que el archivo se haya creado correctamente
+                if (!file_exists($tempFile)) {
+                    \Log::error('ExportarExcelSinPlantilla - El archivo no se creó correctamente');
+                    throw new \Exception("El archivo no se pudo crear en: " . $tempFile);
+                }
+                
+                if (filesize($tempFile) == 0) {
+                    \Log::error('ExportarExcelSinPlantilla - El archivo creado está vacío');
+                    throw new \Exception("El archivo se creó pero está vacío: " . $tempFile);
+                }
+                
+                \Log::info('ExportarExcelSinPlantilla - Archivo creado exitosamente en: ' . $tempFile . ' - Tamaño: ' . filesize($tempFile) . ' bytes');
+            } catch (\Exception $writerEx) {
+                \Log::error('ExportarExcelSinPlantilla - Error al guardar el archivo: ' . $writerEx->getMessage());
+                throw new \Exception("Error al guardar el archivo Excel: " . $writerEx->getMessage());
+            }
+            
+            // Generar un nombre de archivo para la descarga
+            $downloadFilename = 'evaluacion_' . $evaluacion->id . '.xlsx';
+            
+            // Informar al usuario
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => 'Archivo Excel generado correctamente'
+            ]);
+            
+            \Log::info('ExportarExcelSinPlantilla - Preparando respuesta de descarga para: ' . $downloadFilename);
+            
+            // Devolver la respuesta para descargar el archivo
+            try {
+                return response()->download($tempFile, $downloadFilename, [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ])->deleteFileAfterSend(true);
+            } catch (\Exception $downloadEx) {
+                \Log::error('ExportarExcelSinPlantilla - Error al generar la respuesta de descarga: ' . $downloadEx->getMessage());
+                throw new \Exception("Error al generar la respuesta de descarga: " . $downloadEx->getMessage());
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('ExportarExcelSinPlantilla - Error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al generar el archivo Excel: ' . $e->getMessage()
+            ]);
+            
+            return null;
+        }
+    }
+
+    /**
+     * Confirmar exportación en modo trial (limitado a 10 registros)
+     */
+    #[On('confirmarExportarExcel')]
+    public function confirmarExportarExcel()
+    {
+        \Log::info('====== MÉTODO confirmarExportarExcel EN FORM INICIADO ======');
+        \Log::info('Form - evaluacionId: ' . ($this->evaluacionId ?? 'NULL') . ' - Timestamp: ' . now()->toDateTimeString());
+        
+        try {
+            // Notificar que se recibió la confirmación
+            $this->dispatch('notify', [
+                'type' => 'info',
+                'message' => 'Procesando solicitud confirmada...'
+            ]);
+            
+            // Buscar la evaluación
+            $evaluacion = \App\Models\Evaluacion::findOrFail($this->evaluacionId);
+            \Log::info('Form Export Confirm - Evaluación encontrada: ' . $evaluacion->id);
+            
+            $currentUser = auth()->user();
+            \Log::info('Form Export Confirm - Usuario: ' . $currentUser->name);
+            
+            // Verificar si existe la plantilla - usar separadores de ruta correctos
+            $templatePath = str_replace('/', DIRECTORY_SEPARATOR, storage_path('app/templates/evaluacion_template.xlsx'));
+            $templateExists = file_exists($templatePath);
+            
+            \Log::info('Form Export Confirm - Verificando plantilla en: ' . $templatePath);
+            \Log::info('Form Export Confirm - Plantilla existe: ' . ($templateExists ? 'SÍ' : 'NO'));
+            
+            if (!$templateExists) {
+                \Log::warning('Form Export Confirm - Plantilla no encontrada en: ' . $templatePath . ' - Usando método alternativo sin plantilla');
+                
+                try {
+                    // En modo trial siempre limitamos a 10 registros
+                    $tempResult = $this->exportarExcelSinPlantilla($evaluacion, $currentUser->name, true);
+                    
+                    \Log::info('Form Export Confirm - exportarExcelSinPlantilla ejecutado con éxito');
+                    
+                    if (!$tempResult) {
+                        \Log::error('Form Export Confirm - exportarExcelSinPlantilla devolvió NULL o false');
+                        throw new \Exception('El método de exportación sin plantilla falló al generar el archivo');
+                    }
+                    
+                    return $tempResult;
+                } catch (\Exception $innerEx) {
+                    \Log::error('Form Export Confirm - Error en exportarExcelSinPlantilla: ' . $innerEx->getMessage());
+                    \Log::error($innerEx->getTraceAsString());
+                    
+                    $this->dispatch('notify', [
+                        'type' => 'error',
+                        'message' => 'Error en exportación sin plantilla: ' . $innerEx->getMessage()
+                    ]);
+                    
+                    return null;
+                }
+            }
+            
+            // Si la plantilla existe, usar el método normal de exportación
+            \Log::info('Form Export Confirm - Redirigiendo a ruta de exportación: evaluaciones/' . $evaluacion->id . '/excel');
+            return redirect()->route('evaluaciones.excel', ['evaluacionId' => $evaluacion->id]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Form Export Confirm - Error: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al procesar exportación confirmada: ' . $e->getMessage()
+            ]);
+            
+            return null;
+        }
     }
 }
 

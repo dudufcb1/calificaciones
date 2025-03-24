@@ -210,16 +210,43 @@ class Show extends Component
 
     private function ejecutarExportacionExcel($evaluacion, $nombreDocente, $limitarRegistros)
     {
-        // Verificar si existe la plantilla
-        $templatePath = storage_path('app/templates/evaluacion_template.xlsx');
+        // Verificar si existe la plantilla usando separadores de ruta consistentes
+        $templatePath = str_replace('/', DIRECTORY_SEPARATOR, storage_path('app/templates/evaluacion_template.xlsx'));
+        $templateExists = file_exists($templatePath);
+        
+        \Log::info('Show Export Execute - Verificando plantilla en: ' . $templatePath);
+        \Log::info('Show Export Execute - Plantilla existe: ' . ($templateExists ? 'SÍ' : 'NO'));
 
-        if (!file_exists($templatePath)) {
-            \Log::error('Plantilla no encontrada en: ' . $templatePath);
-            $this->dispatch('notify', [
-                'type' => 'error',
-                'message' => 'No se encontró la plantilla de Excel'
-            ]);
-            return;
+        if (!$templateExists) {
+            \Log::warning('Show Export Execute - Plantilla no encontrada. Usando método sin plantilla.');
+            
+            // Crear una instancia de la clase Form para usar su método de exportación sin plantilla
+            $formComponent = new \App\Livewire\Evaluacion\Form();
+            
+            try {
+                // Llamar al método exportarExcelSinPlantilla pasando los parámetros necesarios
+                $result = $formComponent->exportarExcelSinPlantilla($evaluacion, $nombreDocente, $limitarRegistros);
+                
+                \Log::info('Show Export Execute - Exportación sin plantilla ejecutada con éxito');
+                
+                if (!$result) {
+                    \Log::error('Show Export Execute - El método sin plantilla devolvió NULL o false');
+                    throw new \Exception('El método de exportación sin plantilla falló al generar el archivo');
+                }
+                
+                return $result;
+                
+            } catch (\Exception $innerEx) {
+                \Log::error('Show Export Execute - Error en exportación sin plantilla: ' . $innerEx->getMessage());
+                \Log::error($innerEx->getTraceAsString());
+                
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'Error al exportar sin plantilla: ' . $innerEx->getMessage()
+                ]);
+                
+                return null;
+            }
         }
 
         // Asegurar que el directorio temp existe
