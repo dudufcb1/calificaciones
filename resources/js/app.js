@@ -497,3 +497,82 @@ observer.observe(document.body, {
     childList: true,
     subtree: true
 });
+
+// Add PDF download handler for Livewire
+document.addEventListener('livewire:init', () => {
+    // Handle PDF downloads
+    Livewire.on('downloadPdf', (url) => {
+        console.log('Initiating PDF download:', url);
+        
+        // Open in a new tab/window to avoid Livewire's JSON issues
+        window.open(url, '_blank');
+    });
+});
+
+// Direct event handler for PDF downloads (works without livewire:init)
+window.addEventListener('downloadPdf', event => {
+    try {
+        const url = event.detail;
+        console.log('PDF download event received:', url);
+        
+        // Fallback if event detail is in a different format
+        const downloadUrl = typeof url === 'string' ? url : 
+                          (event.detail && event.detail.url ? event.detail.url : null);
+        
+        if (!downloadUrl) {
+            console.error('Invalid PDF download URL received:', event.detail);
+            Toast.fire({
+                icon: 'error',
+                title: 'Error al iniciar la descarga del PDF'
+            });
+            return;
+        }
+        
+        console.log('Opening PDF in new window:', downloadUrl);
+        
+        // Open in a new tab/window to avoid Livewire's JSON issues
+        window.open(downloadUrl, '_blank');
+        
+        // Fallback for popup blockers
+        setTimeout(() => {
+            Toast.fire({
+                icon: 'info',
+                title: 'Si la descarga no inicia automáticamente, haga clic en "Aceptar" para intentar nuevamente',
+                showConfirmButton: true,
+                confirmButtonText: 'Aceptar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    window.open(downloadUrl, '_blank');
+                }
+            });
+        }, 1000);
+    } catch (error) {
+        console.error('Error processing PDF download:', error);
+        Toast.fire({
+            icon: 'error',
+            title: 'Error al procesar la descarga del PDF'
+        });
+    }
+});
+
+// Handler for forwarding browser events from Livewire
+window.addEventListener('browser-event', event => {
+    try {
+        const eventName = event.detail.name;
+        const eventData = event.detail.data;
+        
+        console.log(`Received browser-event: ${eventName}`, eventData);
+        
+        // Create and dispatch a custom event with the same name
+        const customEvent = new CustomEvent(eventName, {
+            detail: eventData,
+            bubbles: true,
+            cancelable: true
+        });
+        
+        console.log(`Forwarding to ${eventName} handler`, customEvent);
+        window.dispatchEvent(customEvent);
+    } catch (error) {
+        console.error('Error forwarding browser event:', error);
+    }
+});

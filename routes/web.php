@@ -51,6 +51,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/evaluaciones/{evaluacionId}/edit', EvaluacionForm::class)->name('evaluaciones.edit');
         Route::get('/evaluaciones/{evaluacionId}/show', \App\Livewire\Evaluacion\Show::class)->name('evaluaciones.show');
         Route::get('/evaluaciones/{evaluacionId}/excel', [EvaluacionController::class, 'exportarExcel'])->name('evaluaciones.excel');
+        Route::get('/evaluaciones/{id}/pdf/download', [EvaluacionController::class, 'exportarPdf'])->name('evaluaciones.pdf.download');
 
         // Rutas de Grupo
         Route::get('/grupos', GrupoIndex::class)->name('grupos.index');
@@ -75,5 +76,24 @@ Route::get('/', App\Livewire\Dashboard::class)->middleware(['auth', 'verified'])
 
 // Ruta de prueba para verificar el ResourceVerifier
 Route::get('/test', App\Livewire\Test::class)->middleware(['auth', 'verified'])->name('test');
+
+// Ruta para descargas temporales
+Route::get('/temp/download', function (\Illuminate\Http\Request $request) {
+    $file = $request->get('file');
+    $name = $request->get('name', 'download');
+    $type = $request->get('type', 'application/octet-stream');
+    
+    // Validar que el archivo existe y es seguro (solo archivos en el directorio temp)
+    $path = storage_path('app/temp/' . basename($file));
+    
+    if (!file_exists($path)) {
+        abort(404, 'Archivo no encontrado');
+    }
+    
+    // Devolver el archivo
+    return response()->download($path, $name, [
+        'Content-Type' => $type,
+    ])->deleteFileAfterSend(true);
+})->name('temp.download')->middleware(['auth']);
 
 require __DIR__.'/auth.php';

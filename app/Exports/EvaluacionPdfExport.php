@@ -90,20 +90,45 @@ class EvaluacionPdfExport
                 'fecha' => now()->format('d/m/Y'),
             ];
 
-            \Log::info('Cargando vista para PDF');
-            $pdf = PDF::loadView('exports.evaluacion-pdf', $data);
-
-            // Configurar PDF
-            $pdf->setPaper('a4', 'landscape');
-            $pdf->setOptions([
+            // Desactivar el modo de depuración para evitar que imprima información en el PDF
+            \Log::info('Cargando vista para PDF con opciones optimizadas');
+            
+            // Crear una instancia personalizada de PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::setOptions([
                 'defaultFont' => 'sans-serif',
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'isPhpEnabled' => true,
-                'debugCss' => true
-            ]);
+                'isRemoteEnabled' => false, // Deshabilitar carga remota para seguridad
+                'isPhpEnabled' => false,    // Deshabilitar PHP para seguridad
+                'isJavascriptEnabled' => false, // Deshabilitar JavaScript para seguridad
+                'isFontSubsettingEnabled' => true, // Mejorar el rendimiento
+                'debugKeepTemp' => false,  // No mantener archivos temporales
+                'debugCss' => false,       // Deshabilitar depuración de CSS
+                'debugLayout' => false,    // Deshabilitar depuración de layout
+                'logOutputFile' => '',     // No guardar logs
+            ])->loadView('exports.evaluacion-pdf', $data);
 
-            \Log::info('PDF cargado correctamente');
+            // Configurar PDF para landscape
+            $pdf->setPaper('a4', 'landscape');
+            
+            // Verificar si el renderizado fue exitoso
+            try {
+                // Realizar un renderizado de prueba para detectar errores
+                $testOutput = $pdf->output();
+                if (!$testOutput || strlen($testOutput) < 100) {
+                    throw new \Exception("El PDF generado está vacío o es demasiado pequeño");
+                }
+                
+                // Verificar el formato PDF
+                if (strpos($testOutput, '%PDF') !== 0) {
+                    throw new \Exception("El contenido generado no parece ser un PDF válido");
+                }
+                
+                \Log::info('PDF generado correctamente: ' . strlen($testOutput) . ' bytes');
+            } catch (\Exception $renderException) {
+                \Log::error('Error al renderizar PDF: ' . $renderException->getMessage());
+                throw new \Exception('Error al renderizar el PDF: ' . $renderException->getMessage());
+            }
+
             return $pdf;
         } catch (\Exception $e) {
             \Log::error('Error en EvaluacionPdfExport::export: ' . $e->getMessage());

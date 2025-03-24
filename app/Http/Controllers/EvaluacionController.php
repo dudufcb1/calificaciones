@@ -98,4 +98,119 @@ class EvaluacionController extends Controller
             return redirect()->back()->with('error', 'Error al exportar: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Exportar evaluación a PDF (separado de Livewire)
+     */
+    public function exportarPdf($id)
+    {
+        try {
+            \Log::info('Iniciando exportación PDF en controlador - ID: ' . $id);
+            
+            // 1. Verificar que existe la sesión con los datos necesarios
+            if (!session()->has('pdf_export')) {
+                \Log::error('PDF Export - Sesión no encontrada');
+                return redirect()->back()->with('error', 'Datos de exportación no encontrados. Intente nuevamente.');
+            }
+            
+            // 2. Recuperar y validar datos de la sesión
+            $data = session('pdf_export');
+            
+            if ($data['evaluacion_id'] != $id || now()->isAfter($data['expires_at'])) {
+                \Log::error('PDF Export - Datos de sesión inválidos o expirados');
+                session()->forget('pdf_export');
+                return redirect()->back()->with('error', 'Los datos de exportación han expirado. Intente nuevamente.');
+            }
+            
+            // 3. Cargar la evaluación
+            $evaluacion = \App\Models\Evaluacion::with(['campoFormativo', 'detalles.alumno', 'detalles.criterios'])
+                ->findOrFail($id);
+            
+            $nombreDocente = $data['docente'];
+            \Log::info('PDF Export - Evaluación cargada, Docente: ' . $nombreDocente);
+            
+            // 4. Generar el PDF con manejo de errores mejorado
+            \Log::info('PDF Export - Iniciando generación');
+            
+            // Capturar errores durante la generación del PDF
+            $previousErrorReporting = error_reporting();
+            error_reporting(0); // Deshabilitar completamente la salida de errores
+            
+            try {
+                // Crear el objeto de exportación
+                $export = new \App\Exports\EvaluacionPdfExport($evaluacion, $nombreDocente);
+                
+                // Verificar que todas las vistas existen
+                $view = 'exports.evaluacion-pdf';
+                if (!view()->exists($view)) {
+                    throw new \Exception("Vista '$view' no encontrada. Compruebe que existe en resources/views/exports/");
+                }
+                
+                // Exportar el PDF con manejo de excepciones
+                $pdf = $export->export();
+                
+                // Verificar que el objeto PDF se generó correctamente
+                if (!$pdf) {
+                    throw new \Exception("El objeto PDF no se generó correctamente");
+                }
+                
+                \Log::info('PDF Export - PDF generado correctamente');
+            } catch (\Exception $pdfException) {
+                \Log::error('Error específico al generar PDF: ' . $pdfException->getMessage());
+                \Log::error($pdfException->getTraceAsString());
+                throw $pdfException; // Re-lanzar para manejo externo
+            } finally {
+                // Restaurar configuración original
+                error_reporting($previousErrorReporting);
+            }
+            
+            // 5. Verificar que el PDF no esté vacío
+            $output = $pdf->output();
+            $outputSize = strlen($output);
+            $outputFirst100Chars = substr($output, 0, 100);
+            
+            \Log::info('PDF Export - Tamaño del PDF: ' . $outputSize . ' bytes');
+            \Log::info('PDF Export - Primeros 100 caracteres: ' . $outputFirst100Chars);
+            
+            // Verificar que comienza con %PDF (formato válido)
+            if ($outputSize <= 0 || strpos($outputFirst100Chars, '%PDF') === false) {
+                \Log::error('PDF Export - El contenido generado no parece ser un PDF válido');
+                throw new \Exception("El PDF generado no es válido. Posible error en la plantilla o en los datos.");
+            }
+            
+            // 6. Guardar PDF en archivo temporal
+            $tempFilename = $data['temp_filename'];
+            $tempDir = storage_path('app/temp');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+            
+            $tempFile = $tempDir . '/' . $tempFilename;
+            $bytesWritten = file_put_contents($tempFile, $output);
+            
+            if (!$bytesWritten) {
+                throw new \Exception("No se pudo escribir el archivo temporal");
+            }
+            
+            \Log::info('PDF Export - Archivo guardado en: ' . $tempFile . ' (' . $bytesWritten . ' bytes)');
+            
+            // 7. Limpiar la sesión
+            session()->forget('pdf_export');
+            
+            // 8. Enviar la respuesta de descarga con headers adecuados
+            return response()->download($tempFile, 'evaluacion_' . $id . '.pdf', [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="evaluacion_' . $id . '.pdf"',
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0'
+            ])->deleteFileAfterSend(true);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error en exportación PDF desde controlador: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            session()->forget('pdf_export'); // Limpiar sesión en caso de error
+            return redirect()->back()->with('error', 'Error al exportar a PDF: ' . $e->getMessage());
+        }
+    }
 }

@@ -292,69 +292,103 @@ class Show extends Component
 
     public function exportarPdf()
     {
-        $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
-        $currentUser = auth()->user();
-
-        // Obtener el nombre del docente (usar el usuario actual si no hay asignado)
-        $nombreDocente = $currentUser->name;
-        if ($evaluacion->user) {
-            $nombreDocente = $evaluacion->user->name;
-        }
-
-        \Log::info('Exportando evaluación a PDF. Docente: ' . $nombreDocente);
-
-        // En modo trial, NO permitir exportar a PDF en absoluto
-        // Solo mostrar mensaje informativo con SweetAlert
-        if (env('APP_TRIAL_MODE', true)) {
-            \Log::info('Exportación a PDF bloqueada en modo trial');
-            $this->dispatch('trial-feature-disabled');
-            return;
-        }
-
+        // Desactivar temporalmente la salida de errores para evitar corromper la respuesta JSON
+        $previousErrorReporting = error_reporting();
+        error_reporting(E_ERROR); // Solo reportar errores fatales
+        
         try {
-            // Verificar si la evaluación está cargada correctamente
-            \Log::info('ID de evaluación: ' . $evaluacion->id . ', Título: ' . $evaluacion->titulo);
+            // 1. Notificar al usuario que estamos procesando
+            $this->dispatch('notify', [
+                'type' => 'info',
+                'message' => 'Generando PDF, por favor espere...'
+            ]);
+            
+            // 2. Cargar la evaluación con sus relaciones
+            $evaluacion = Evaluacion::with('user')->findOrFail($this->evaluacionId);
+            $currentUser = auth()->user();
 
-            // Crear la exportación
-            \Log::info('Iniciando proceso de exportación PDF');
-            $export = new \App\Exports\EvaluacionPdfExport($evaluacion, $nombreDocente);
-
-            // Verificar si la plantilla existe
-            $view = 'exports.evaluacion-pdf';
-            \Log::info('Verificando vista: ' . $view);
-            if (!view()->exists($view)) {
-                throw new \Exception("La vista '$view' no existe");
+            // 3. Verificar permisos trial
+            $trialMode = env('APP_TRIAL_MODE', true);
+            $userIsTrial = $currentUser->trial ?? true;
+            
+            \Log::info('PDF Export - Trial mode: ' . ($trialMode ? 'true' : 'false'));
+            \Log::info('PDF Export - User is trial: ' . ($userIsTrial ? 'true' : 'false'));
+            
+            if ($trialMode && $userIsTrial) {
+                \Log::info('Exportación a PDF bloqueada en modo trial - Usuario trial');
+                $this->dispatch('trial-feature-disabled');
+                return;
             }
-
-            $pdf = $export->export();
-            \Log::info('PDF generado correctamente');
-
-            // Verificar que el output del PDF no esté vacío
-            $output = $pdf->output();
-            $size = strlen($output);
-            \Log::info('Tamaño del PDF generado: ' . $size . ' bytes');
-
-            if ($size <= 0) {
-                throw new \Exception("El PDF generado está vacío");
-            }
-
-            // Generar un archivo temporal para el PDF
-            $tempFile = storage_path('app/temp/evaluacion_' . $evaluacion->id . '_' . time() . '.pdf');
-            file_put_contents($tempFile, $output);
-            \Log::info('PDF guardado en archivo temporal: ' . $tempFile);
-
-            // Devolver el archivo para descarga
-            return response()->download($tempFile, 'evaluacion_' . $evaluacion->id . '.pdf', [
-                'Content-Type' => 'application/pdf',
-            ])->deleteFileAfterSend(true);
+            
+            // 4. Generar un nombre único para el archivo
+            $tempFilename = 'evaluacion_' . $evaluacion->id . '_' . time() . '.pdf';
+            
+            // 5. Crear una sesión temporal con los datos necesarios para el controlador
+            session()->put('pdf_export', [
+                'evaluacion_id' => $evaluacion->id,
+                'temp_filename' => $tempFilename,
+                'docente' => $currentUser->name,
+                'expires_at' => now()->addMinutes(5)
+            ]);
+            
+            // 6. Generar URL de redirección al controlador
+            $downloadUrl = route('evaluaciones.pdf.download', [
+                'id' => $evaluacion->id,
+                'token' => csrf_token()
+            ]);
+            
+            // 7. Notificar éxito y mostrar enlace de descarga
+            $this->dispatch('swal', [
+                'title' => 'PDF Listo para Descargar',
+                'html' => 'Haga clic en el botón para descargar el PDF.<br><br>' .
+                        '<a href="' . $downloadUrl . '" target="_blank" ' .
+                        'class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent ' .
+                        'rounded-md font-semibold text-xs text-white uppercase tracking-widest ' .
+                        'hover:bg-blue-500 active:bg-blue-700 focus:outline-none focus:border-blue-700 ' .
+                        'focus:ring focus:ring-blue-300 disabled:opacity-25 transition">' .
+                        '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" ' .
+                        'viewBox="0 0 24 24" stroke="currentColor">' .
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ' .
+                        'd="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />' .
+                        '</svg>Descargar PDF</a>',
+                'icon' => 'success',
+                'showConfirmButton' => false,
+                'showCloseButton' => true,
+            ]);
+            
+            \Log::info('PDF Export - Proceso completado, redirigido a: ' . $downloadUrl);
+            
         } catch (\Exception $e) {
             \Log::error('Error en exportarPdf: ' . $e->getMessage());
             \Log::error($e->getTraceAsString());
+            
             $this->dispatch('notify', [
                 'type' => 'error',
                 'message' => 'Error al exportar a PDF: ' . $e->getMessage()
             ]);
+        } finally {
+            // Restaurar la configuración de reporte de errores
+            error_reporting($previousErrorReporting);
         }
+    }
+
+    /**
+     * Emite un evento al navegador para iniciar la descarga de un archivo
+     */
+    private function dispatchBrowser($event, $url)
+    {
+        \Log::info("Despachando evento de descarga: {$event} con URL: {$url}");
+        
+        // Despachar evento Livewire (para listeners registrados con Livewire.on)
+        $this->dispatch($event, $url);
+        
+        // Despachar evento nativo de browser (para listeners registrados con window.addEventListener)
+        $this->dispatch('browser-event', [
+            'name' => $event,
+            'data' => $url
+        ]);
+        
+        return null;
     }
 
     public function render()
