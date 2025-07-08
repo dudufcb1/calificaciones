@@ -4,9 +4,29 @@
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-900">
-                            {{ $editing ? 'Editar Evaluación' : 'Evaluar Momento' }}
-                        </h2>
+                        <div class="flex items-center space-x-3">
+                            <h2 class="text-xl font-bold text-gray-900">
+                                {{ $editing ? 'Editar Evaluación' : 'Evaluar Momento' }}
+                            </h2>
+
+                            @if($editing)
+                                @if($is_draft ?? true)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Borrador
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Finalizada
+                                    </span>
+                                @endif
+                            @endif
+                        </div>
                         <div class="text-sm text-gray-500">
                             {{ $autoSaveMessage }}
                         </div>
@@ -303,9 +323,36 @@
                             <a href="{{ route('evaluaciones.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 Cancelar
                             </a>
-                            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                {{ $editing ? 'Actualizar Evaluación' : 'Crear Evaluaciones' }}
-                            </button>
+
+                            @if($editing)
+                                <!-- Botón para guardar cambios (mantiene como borrador) -->
+                                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Guardar Cambios
+                                </button>
+
+                                <!-- Botón para finalizar definitivamente -->
+                                @if($is_draft ?? true)
+                                    <button type="button" wire:click="finalizarDefinitivamente"
+                                            wire:confirm="¿Está seguro de finalizar esta evaluación? Una vez finalizada no se podrá editar."
+                                            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                        Finalizar Evaluación
+                                    </button>
+                                @else
+                                    <span class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                        Evaluación Finalizada
+                                    </span>
+                                @endif
+                            @else
+                                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Crear Evaluaciones
+                                </button>
+                            @endif
                         </div>
                     </form>
                 </div>
@@ -521,7 +568,26 @@
 
     @push('scripts')
         <script>
-            // ... existing code ...
+            // Escuchar evento para confirmar aplicación de asistencia
+            document.addEventListener('livewire:init', () => {
+                Livewire.on('confirm-apply-attendance', (event) => {
+                    const data = event[0];
+                    Swal.fire({
+                        title: '¿Aplicar porcentajes de asistencia?',
+                        text: data.message,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#3085d6',
+                        confirmButtonText: 'Sí, aplicar',
+                        cancelButtonText: 'Cancelar'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            @this.call('confirmarAplicarAsistencia');
+                        }
+                    });
+                });
+            });
         </script>
     @endpush
 </div>

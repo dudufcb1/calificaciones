@@ -184,39 +184,93 @@ window.addEventListener('trial-feature-disabled', event => {
 
 // Evento para confirmar exportación a Excel en modo Trial
 window.addEventListener('trial-excel-export', event => {
-    // console.log('Evento trial-excel-export recibido - mostrando diálogo de confirmación');
-    Swal.fire({
-        title: 'Exportación limitada',
-        text: 'En modo Trial solo puedes exportar hasta 10 registros. ¿Deseas continuar?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, exportar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#4f46e5',
-    }).then((result) => {
+    console.log('🔥 Evento trial-excel-export recibido - mostrando diálogo de confirmación');
+
+    // Test directo de SweetAlert
+    console.log('🧪 Testing SweetAlert availability:', typeof Swal);
+
+    // Test inmediato de SweetAlert
+    console.log('🚨 EJECUTANDO TEST INMEDIATO DE SWEETALERT');
+    try {
+        Swal.fire({
+            title: 'TEST INMEDIATO',
+            text: 'Si ves esto, SweetAlert funciona',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+        console.log('✅ Test inmediato ejecutado sin errores');
+    } catch (error) {
+        console.error('❌ Error en test inmediato:', error);
+    }
+
+    // Usar setTimeout para asegurar que el diálogo se muestre
+    setTimeout(() => {
+        console.log('⏰ Mostrando diálogo SweetAlert después de timeout');
+        const swalConfig = {
+            title: 'Versión de Prueba',
+            text: 'Esta es una versión de prueba y se limita a solo 10 registros. Si quieres la versión completa debes adquirirla al 9616085491. ¿Deseas continuar?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, exportar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5',
+            backdrop: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            customClass: {
+                container: 'swal2-container-custom'
+            }
+        };
+
+        console.log('🔧 Configuración SweetAlert:', swalConfig);
+
+        Swal.fire(swalConfig).then((result) => {
         if (result.isConfirmed) {
-            // console.log('Usuario confirmó exportación - enviando evento confirmarExportarExcel');
+            console.log('✅ Usuario confirmó exportación - enviando evento confirmarExportarExcel');
             // Actualizado: usar el nuevo sistema de eventos de Livewire v3
             if (typeof window.Livewire !== 'undefined') {
-                // console.log('Llamando a Livewire.dispatch("confirmarExportarExcel")');
+                console.log('📡 Llamando a Livewire.dispatch("confirmarExportarExcel")');
                 window.Livewire.dispatch('confirmarExportarExcel');
             } else {
-                console.error('Livewire no está disponible');
+                console.error('❌ Livewire no está disponible');
                 Toast.fire({
                     icon: 'error',
                     title: 'Error al iniciar la exportación'
                 });
             }
         } else {
-            // console.log('Usuario canceló la exportación');
+            console.log('❌ Usuario canceló la exportación');
         }
     });
+    }, 100); // Timeout de 100ms
+});
+
+// Test de SweetAlert - se ejecuta al cargar la página
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 DOM cargado, SweetAlert disponible:', typeof window.Swal);
+
+    // Test simple después de 2 segundos
+    setTimeout(() => {
+        console.log('🧪 Ejecutando test de SweetAlert...');
+        if (typeof window.Swal !== 'undefined') {
+            console.log('✅ SweetAlert está disponible');
+        } else {
+            console.error('❌ SweetAlert NO está disponible');
+        }
+    }, 2000);
 });
 
 // Para notificaciones genéricas de Livewire
 window.addEventListener('notify', event => {
-    // console.log('Evento notify recibido:', event.detail);
-    const detail = event.detail;
+    console.log('Evento notify recibido:', event.detail);
+    let detail = event.detail;
+
+    // Si detail es un array, tomar el primer elemento
+    if (Array.isArray(detail) && detail.length > 0) {
+        detail = detail[0];
+        console.log('Detail extraído del array:', detail);
+    }
 
     // Extraer type y message, manejando ambos órdenes posibles
     let type = detail.type || 'info';
@@ -227,21 +281,42 @@ window.addEventListener('notify', event => {
         message = detail;
     }
 
+    // Si aún no hay mensaje, verificar si hay otros campos útiles
+    if (!message) {
+        if (detail.error) {
+            message = detail.error;
+            type = 'error';
+        } else if (detail.warning) {
+            message = detail.warning;
+            type = 'warning';
+        } else if (detail.info) {
+            message = detail.info;
+            type = 'info';
+        }
+    }
+
     // Asegurarse de que type es válido para SweetAlert2
     if (!['success', 'error', 'warning', 'info', 'question'].includes(type)) {
         type = 'info';
     }
 
-    // console.log('Mostrando toast con:', { type, message });
+    console.log('Mostrando toast con:', { type, message });
 
     // Mostrar toast solo si hay un mensaje
-    if (message) {
+    if (message && message.trim() !== '') {
         Toast.fire({
             icon: type,
             title: message
         });
     } else {
-        console.warn('Toast no mostrado: mensaje vacío');
+        console.warn('Toast no mostrado: mensaje vacío o inválido', { detail, type, message });
+        // Mostrar un mensaje genérico para errores sin mensaje específico
+        if (type === 'error') {
+            Toast.fire({
+                icon: 'error',
+                title: 'Ha ocurrido un error. Revise la consola para más detalles.'
+            });
+        }
     }
 });
 

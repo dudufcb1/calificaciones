@@ -121,15 +121,17 @@ class Show extends Component
 
             \Log::info('Docente: ' . $nombreDocente . ' - Cantidad de detalles: ' . count($evaluacion->detalles));
 
-            // Verificar si estamos en modo trial y si hay más de 10 registros
-            $trialMode = env('APP_TRIAL_MODE', true);
-            $needsConfirmation = $trialMode && count($evaluacion->detalles) > 10;
+            // Verificar si estamos en modo trial - mostrar diálogo SIEMPRE para usuarios trial
+            $appTrialMode = env('APP_TRIAL_MODE', true);
+            $userIsTrial = auth()->check() && auth()->user()->trial;
+            $needsConfirmation = $appTrialMode && $userIsTrial; // Siempre mostrar para usuarios trial
 
-            \Log::info('Modo trial: ' . ($trialMode ? 'Activo' : 'Inactivo') .
+            \Log::info('App Trial Mode: ' . ($appTrialMode ? 'Activo' : 'Inactivo') .
+                      ' - Usuario Trial: ' . ($userIsTrial ? 'Sí' : 'No') .
                       ' - Requiere confirmación: ' . ($needsConfirmation ? 'Sí' : 'No'));
 
             if ($needsConfirmation) {
-                // Más de 10 registros en modo trial, mostrar diálogo de confirmación
+                // Usuario en modo trial, mostrar diálogo de confirmación SIEMPRE
                 \Log::info('Intentando mostrar diálogo de confirmación para trial - ' . now()->toDateTimeString());
 
                 // Despachar el evento para el diálogo de SweetAlert
@@ -145,11 +147,11 @@ class Show extends Component
                 return null; // Detener ejecución y esperar la confirmación del usuario
             }
 
-            // Si no estamos en modo trial o hay 10 o menos registros, exportar directamente
+            // Si no estamos en modo trial, exportar directamente sin diálogo
             \Log::info('Ejecutando exportación Excel directamente (sin diálogo) - ' . now()->toDateTimeString());
 
             // En modo trial limitamos a 10 registros, en modo normal exportamos todos
-            $limitarRegistros = $trialMode;
+            $limitarRegistros = $appTrialMode && $userIsTrial;
 
             return $this->ejecutarExportacionExcel($evaluacion, $nombreDocente, $limitarRegistros);
 

@@ -43,6 +43,8 @@ class Form extends Component
             $this->descripcion = $campoFormativo->descripcion;
             $this->criterios = $campoFormativo->criterios->toArray();
         } else {
+            // Agregar criterio de asistencia por defecto
+            $this->addCriterioAsistencia();
             $this->addCriterio();
         }
     }
@@ -56,10 +58,40 @@ class Form extends Component
         ];
     }
 
+    public function addCriterioAsistencia()
+    {
+        $this->criterios[] = [
+            'nombre' => 'Asistencia',
+            'porcentaje' => 0,
+            'descripcion' => 'Criterio de asistencia (programático)',
+            'es_asistencia' => true // Marcador especial para identificar este criterio
+        ];
+    }
+
     public function removeCriterio($index)
+    {
+        // Verificar si es el criterio de asistencia
+        if (isset($this->criterios[$index]['es_asistencia']) && $this->criterios[$index]['es_asistencia']) {
+            $this->dispatch('confirm-delete-asistencia', [
+                'index' => $index,
+                'message' => '¿Está seguro de eliminar el criterio de Asistencia? Esto podría generar inconsistencias en las evaluaciones existentes.'
+            ]);
+            return;
+        }
+
+        unset($this->criterios[$index]);
+        $this->criterios = array_values($this->criterios);
+    }
+
+    public function confirmarEliminarAsistencia($index)
     {
         unset($this->criterios[$index]);
         $this->criterios = array_values($this->criterios);
+
+        $this->dispatch('notify', [
+            'type' => 'warning',
+            'message' => 'Criterio de asistencia eliminado. Revise las evaluaciones existentes.'
+        ]);
     }
 
     public function updated($field)
@@ -72,6 +104,18 @@ class Form extends Component
     public function save()
     {
         try {
+            // Verificar si hay evaluaciones finalizadas para este campo formativo
+            if ($this->editing) {
+                $evaluacionesFinalizadas = \App\Models\Evaluacion::where('campo_formativo_id', $this->campoFormativoId)
+                    ->where('is_draft', false)
+                    ->count();
+
+                if ($evaluacionesFinalizadas > 0) {
+                    session()->flash('error', 'No se pueden modificar los criterios de un campo formativo que tiene evaluaciones finalizadas. Esto podría causar inconsistencias en los datos existentes.');
+                    return;
+                }
+            }
+
             // Validación antes de procesar
             foreach ($this->criterios as $index => $criterio) {
                 // Verificamos que cada porcentaje sea numérico
@@ -114,7 +158,8 @@ class Form extends Component
                 $campoFormativo->criterios()->create([
                     'nombre' => $criterio['nombre'],
                     'porcentaje' => (float) $criterio['porcentaje'],
-                    'descripcion' => $criterio['descripcion']
+                    'descripcion' => $criterio['descripcion'],
+                    'es_asistencia' => isset($criterio['es_asistencia']) ? $criterio['es_asistencia'] : false
                 ]);
             }
 

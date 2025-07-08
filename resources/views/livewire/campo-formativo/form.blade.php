@@ -45,10 +45,31 @@
                         <div>
                             <div class="flex justify-between items-center mb-4">
                                 <label class="block text-sm font-medium text-gray-700">Criterios de Evaluación</label>
-                                <button type="button" wire:click.prevent="addCriterio"
-                                        class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-1 px-3 rounded text-sm">
-                                    Agregar Criterio
-                                </button>
+                                @php
+                                    $tieneEvaluacionesFinalizadas = false;
+                                    if ($editing && $campoFormativoId) {
+                                        $tieneEvaluacionesFinalizadas = \App\Models\Evaluacion::where('campo_formativo_id', $campoFormativoId)
+                                            ->where('is_draft', false)
+                                            ->exists();
+                                    }
+                                @endphp
+
+                                @if($tieneEvaluacionesFinalizadas)
+                                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 rounded text-sm">
+                                        <div class="flex items-center">
+                                            <svg class="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                            </svg>
+                                            <span class="font-medium">Edición bloqueada:</span>
+                                            <span class="ml-1">Este campo formativo tiene evaluaciones finalizadas</span>
+                                        </div>
+                                    </div>
+                                @else
+                                    <button type="button" wire:click.prevent="addCriterio"
+                                            class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-1 px-3 rounded text-sm">
+                                        Agregar Criterio
+                                    </button>
+                                @endif
                             </div>
 
                             <div x-data="{ sumaPorcentajes: 0 }"
@@ -56,11 +77,20 @@
                                         $watch('sumaPorcentajes', value => console.log('Suma actualizada:', value))">
                                 <div class="space-y-4">
                                     @foreach($criterios as $index => $criterio)
-                                        <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                                        <div class="flex items-center space-x-4 p-4 {{ isset($criterio['es_asistencia']) && $criterio['es_asistencia'] ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50' }} rounded-lg">
                                             <div class="flex-1">
+                                                @if(isset($criterio['es_asistencia']) && $criterio['es_asistencia'])
+                                                    <div class="flex items-center mb-2">
+                                                        <svg class="h-4 w-4 text-blue-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                                        </svg>
+                                                        <span class="text-xs text-blue-600 font-medium">Criterio de Asistencia (Programático)</span>
+                                                    </div>
+                                                @endif
                                                 <input type="text" wire:model="criterios.{{ $index }}.nombre"
                                                        placeholder="Nombre del criterio"
-                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200">
+                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 {{ $tieneEvaluacionesFinalizadas ? 'bg-gray-100' : '' }}"
+                                                       {{ (isset($criterio['es_asistencia']) && $criterio['es_asistencia']) || $tieneEvaluacionesFinalizadas ? 'readonly' : '' }}>
                                                 @error("criterios.{$index}.nombre")
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
                                                 @enderror
@@ -77,7 +107,8 @@
                                                            if ($el.value < 0) $el.value = 0;
                                                            sumaPorcentajes = recalcularPorcentajes()
                                                        "
-                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 @error('criterios.'.$index.'.porcentaje') border-red-500 @enderror">
+                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 {{ $tieneEvaluacionesFinalizadas ? 'bg-gray-100' : '' }} @error('criterios.'.$index.'.porcentaje') border-red-500 @enderror"
+                                                       {{ $tieneEvaluacionesFinalizadas ? 'readonly' : '' }}>
                                                 @error("criterios.{$index}.porcentaje")
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
                                                 @enderror
@@ -86,15 +117,35 @@
                                             <div class="flex-1">
                                                 <input type="text" wire:model="criterios.{{ $index }}.descripcion"
                                                        placeholder="Descripción (opcional)"
-                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200">
+                                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 {{ $tieneEvaluacionesFinalizadas ? 'bg-gray-100' : '' }}"
+                                                       {{ $tieneEvaluacionesFinalizadas ? 'readonly' : '' }}>
                                             </div>
 
-                                            <button type="button" wire:click="removeCriterio({{ $index }})"
-                                                    class="text-red-600 hover:text-red-800">
-                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                </svg>
-                                            </button>
+                                            @if($tieneEvaluacionesFinalizadas)
+                                                <button type="button" disabled
+                                                        class="text-gray-400 cursor-not-allowed"
+                                                        title="No se puede eliminar: hay evaluaciones finalizadas">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"/>
+                                                    </svg>
+                                                </button>
+                                            @elseif(isset($criterio['es_asistencia']) && $criterio['es_asistencia'])
+                                                <button type="button"
+                                                        onclick="confirmarEliminarAsistencia({{ $index }})"
+                                                        class="text-orange-600 hover:text-orange-800"
+                                                        title="Eliminar criterio de asistencia (requiere confirmación)">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                                                    </svg>
+                                                </button>
+                                            @else
+                                                <button type="button" wire:click="removeCriterio({{ $index }})"
+                                                        class="text-red-600 hover:text-red-800">
+                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            @endif
                                         </div>
                                     @endforeach
                                 </div>
@@ -150,10 +201,17 @@
                            class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             Cancelar
                         </a>
-                        <button type="submit"
-                                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            {{ $editing ? 'Actualizar' : 'Crear' }}
-                        </button>
+                        @if($tieneEvaluacionesFinalizadas)
+                            <button type="button" disabled
+                                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-400 cursor-not-allowed">
+                                No se puede actualizar
+                            </button>
+                        @else
+                            <button type="submit"
+                                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                {{ $editing ? 'Actualizar' : 'Crear' }}
+                            </button>
+                        @endif
                     </div>
                 </div>
             </form>
@@ -169,6 +227,24 @@
             return [...inputs].reduce((sum, input) => sum + (Number(input.value) || 0), 0);
         }
     });
+
+    // Función para confirmar eliminación de criterio de asistencia
+    function confirmarEliminarAsistencia(index) {
+        Swal.fire({
+            title: '¿Eliminar criterio de Asistencia?',
+            text: 'Esto podría generar inconsistencias en las evaluaciones existentes. ¿Está seguro de continuar?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                @this.call('confirmarEliminarAsistencia', index);
+            }
+        });
+    }
     </script>
 
     @if (session()->has('message'))

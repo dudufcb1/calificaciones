@@ -16,6 +16,11 @@ class Criterio extends Model
         'campo_formativo_id',
         'orden',
         'user_id',
+        'es_asistencia',
+    ];
+
+    protected $casts = [
+        'es_asistencia' => 'boolean',
     ];
 
     protected static function booted()

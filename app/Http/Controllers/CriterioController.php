@@ -47,6 +47,17 @@ class CriterioController extends Controller
             ], 422);
         }
 
+        // Verificar si hay evaluaciones finalizadas para este campo formativo
+        $evaluacionesFinalizadas = \App\Models\Evaluacion::where('campo_formativo_id', $request->campo_formativo_id)
+            ->where('is_draft', false)
+            ->count();
+
+        if ($evaluacionesFinalizadas > 0) {
+            return response()->json([
+                'message' => 'No se pueden agregar criterios a un campo formativo que tiene evaluaciones finalizadas. Esto podría causar inconsistencias en los datos.'
+            ], 422);
+        }
+
         $criterio = Criterio::create($request->all());
         return response()->json($criterio, 201);
     }
@@ -79,6 +90,17 @@ class CriterioController extends Controller
             'campo_formativo_id' => 'required|exists:campo_formativos,id'
         ]);
 
+        // Verificar si hay evaluaciones finalizadas para este campo formativo
+        $evaluacionesFinalizadas = \App\Models\Evaluacion::where('campo_formativo_id', $criterio->campo_formativo_id)
+            ->where('is_draft', false)
+            ->count();
+
+        if ($evaluacionesFinalizadas > 0) {
+            return response()->json([
+                'message' => 'No se pueden modificar criterios de un campo formativo que tiene evaluaciones finalizadas.'
+            ], 422);
+        }
+
         // Verificar que la suma de porcentajes no exceda 100%
         $campoFormativo = CampoFormativo::findOrFail($request->campo_formativo_id);
         $sumaPorcentajes = $campoFormativo->criterios()
@@ -100,6 +122,17 @@ class CriterioController extends Controller
      */
     public function destroy(Criterio $criterio)
     {
+        // Verificar si hay evaluaciones finalizadas para este campo formativo
+        $evaluacionesFinalizadas = \App\Models\Evaluacion::where('campo_formativo_id', $criterio->campo_formativo_id)
+            ->where('is_draft', false)
+            ->count();
+
+        if ($evaluacionesFinalizadas > 0) {
+            return response()->json([
+                'message' => 'No se pueden eliminar criterios de un campo formativo que tiene evaluaciones finalizadas.'
+            ], 422);
+        }
+
         $criterio->delete();
         return response()->json(null, 204);
     }

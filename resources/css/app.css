@@ -1,3 +1,32 @@
+@import 'sweetalert2/dist/sweetalert2.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Asegurar que SweetAlert2 se muestre correctamente */
+.swal2-container {
+    z-index: 99999 !important;
+}
+
+.swal2-popup {
+    z-index: 99999 !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+.swal2-backdrop-show {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+.swal2-container-custom {
+    z-index: 999999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}

@@ -31,6 +31,7 @@ class Form extends Component
     public $alumnosSeleccionados = [];
     public $alumnosEvaluados = [];
     public $editing = false;
+    public $is_draft = true;
     public $autoSaveMessage = '';
     public $mostrarSeleccionAlumnos = false;
     public $selectedCampoFormativo = null;
@@ -80,6 +81,7 @@ class Form extends Component
         $this->titulo = $evaluacion->titulo;
         $this->descripcion = $evaluacion->descripcion;
         $this->fecha_evaluacion = $evaluacion->fecha_evaluacion ? $evaluacion->fecha_evaluacion->format('Y-m-d') : now()->format('Y-m-d');
+        $this->is_draft = $evaluacion->is_draft;
 
         // Usar el nuevo sistema de momento y grupo
         $this->momentoId = $evaluacion->momento_id;
@@ -170,20 +172,71 @@ class Form extends Component
             return;
         }
 
+        // Verificar si la evaluación está finalizada y prevenir modificaciones
+        if ($this->editing && $this->evaluacionId) {
+            $evaluacion = Evaluacion::find($this->evaluacionId);
+            if ($evaluacion && !$evaluacion->is_draft) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No se pueden modificar los criterios de una evaluación finalizada.'
+                ]);
+                return;
+            }
+        }
+
         // Obtener los criterios del campo formativo
         $campoFormativo = CampoFormativo::with(['criterios' => function ($query) {
             $query->orderBy('orden');
         }])->find($this->campoFormativoId);
 
         if ($campoFormativo) {
+            // Preservar calificaciones existentes si estamos editando
+            $calificacionesExistentes = [];
+            if ($this->editing && !empty($this->alumnosEvaluados)) {
+                foreach ($this->alumnosEvaluados as $alumno) {
+                    $calificacionesExistentes[$alumno['alumno_id']] = [];
+                    foreach ($alumno['calificaciones'] as $calificacion) {
+                        $calificacionesExistentes[$alumno['alumno_id']][$calificacion['criterio_id']] = $calificacion;
+                    }
+                }
+            }
+
+            // Actualizar criterios
             $this->criterios = $campoFormativo->criterios->map(function ($criterio) {
                 return [
                     'id' => $criterio->id,
                     'nombre' => $criterio->nombre,
                     'descripcion' => $criterio->descripcion,
                     'porcentaje' => $criterio->porcentaje,
+                    'es_asistencia' => $criterio->es_asistencia ?? false,
                 ];
             })->toArray();
+
+            // Restaurar y actualizar calificaciones preservando datos existentes
+            if ($this->editing && !empty($calificacionesExistentes)) {
+                foreach ($this->alumnosEvaluados as $alumnoIndex => $alumno) {
+                    $nuevasCalificaciones = [];
+
+                    foreach ($this->criterios as $criterio) {
+                        // Si existe calificación previa para este criterio, la preservamos
+                        if (isset($calificacionesExistentes[$alumno['alumno_id']][$criterio['id']])) {
+                            $nuevasCalificaciones[] = $calificacionesExistentes[$alumno['alumno_id']][$criterio['id']];
+                        } else {
+                            // Si es un criterio nuevo, inicializar con 0
+                            $nuevasCalificaciones[] = [
+                                'criterio_id' => $criterio['id'],
+                                'valor' => 0,
+                                'ponderada' => 0,
+                            ];
+                        }
+                    }
+
+                    $this->alumnosEvaluados[$alumnoIndex]['calificaciones'] = $nuevasCalificaciones;
+
+                    // Recalcular promedio
+                    $this->calcularPromedio($alumnoIndex);
+                }
+            }
         }
     }
 
@@ -561,7 +614,7 @@ class Form extends Component
 
         $allCamposFormativos = $momento->camposFormativos;
 
-        // Si estamos editando, actualizar solo la evaluación actual
+        // Si estamos editando, actualizar solo la evaluación actual (mantener como borrador)
         if ($this->editing && $this->evaluacionId) {
             $evaluacion = Evaluacion::findOrFail($this->evaluacionId);
 
@@ -571,12 +624,17 @@ class Form extends Component
                 'momento_id' => $this->momentoId,
                 'grupo_id' => $this->grupoId,
                 'fecha_evaluacion' => $this->fecha_evaluacion,
-                'is_draft' => false,
+                // Mantener is_draft como está, no cambiar a false aquí
             ]);
 
             // Procesar los detalles de evaluación para esta evaluación
             $this->procesarDetalles($evaluacion);
             $evaluacion->recalcularPromedio();
+
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => 'Evaluación guardada correctamente.'
+            ]);
         } else {
             // Cargar todos los alumnos del grupo
             $alumnos = $grupo->alumnos()->orderBy('apellido_paterno')->get();
@@ -600,22 +658,22 @@ class Form extends Component
             foreach ($allCamposFormativos as $campoFormativo) {
                 // Verificar si ya existe una evaluación para este campo formativo
                 if (isset($existingEvaluaciones[$campoFormativo->id])) {
-                    // Si existe, actualizar
+                    // Si existe, actualizar pero mantener como borrador para permitir edición
                     $evaluacion = $existingEvaluaciones[$campoFormativo->id];
                     $evaluacion->update([
                         'titulo' => $generatedTitle,
                         'fecha_evaluacion' => $this->fecha_evaluacion,
-                        'is_draft' => false,
+                        'is_draft' => true, // Mantener como borrador para permitir edición
                     ]);
                 } else {
-                    // Si no existe, crear
+                    // Si no existe, crear como borrador para permitir edición posterior
                     $evaluacion = Evaluacion::create([
                         'titulo' => $generatedTitle,
                         'campo_formativo_id' => $campoFormativo->id,
                         'momento_id' => $this->momentoId,
                         'grupo_id' => $this->grupoId,
                         'fecha_evaluacion' => $this->fecha_evaluacion,
-                        'is_draft' => false,
+                        'is_draft' => true, // Crear como borrador para permitir edición
                     ]);
                     $evaluacionesCreadas++;
                 }
@@ -659,6 +717,41 @@ class Form extends Component
                 'message' => $mensaje
             ]);
         }
+
+        return redirect()->route('evaluaciones.index');
+    }
+
+    /**
+     * Finaliza definitivamente una evaluación marcándola como no borrador
+     */
+    public function finalizarDefinitivamente()
+    {
+        if (!$this->editing || !$this->evaluacionId) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se puede finalizar una evaluación que no existe.'
+            ]);
+            return;
+        }
+
+        // Validar que todas las calificaciones estén completas
+        $this->validate([
+            'alumnosEvaluados.*.calificaciones.*.valor' => 'required|numeric|min:0|max:100',
+        ]);
+
+        $evaluacion = Evaluacion::findOrFail($this->evaluacionId);
+
+        // Marcar como finalizada
+        $evaluacion->update(['is_draft' => false]);
+
+        // Procesar los detalles de evaluación
+        $this->procesarDetalles($evaluacion);
+        $evaluacion->recalcularPromedio();
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => 'Evaluación finalizada correctamente. Ya no se podrá editar.'
+        ]);
 
         return redirect()->route('evaluaciones.index');
     }
@@ -739,6 +832,39 @@ class Form extends Component
     }
 
     /**
+     * Detecta automáticamente el criterio de asistencia
+     */
+    public function detectarCriterioAsistencia()
+    {
+        // Primero buscar por el marcador es_asistencia
+        foreach ($this->criterios as $criterio) {
+            if (isset($criterio['es_asistencia']) && $criterio['es_asistencia']) {
+                return $criterio['id'];
+            }
+        }
+
+        // Si no se encuentra, buscar por regex en el nombre
+        $patronesAsistencia = [
+            '/^asistencia$/i',
+            '/^pase\s+de\s+lista$/i',
+            '/^lista$/i',
+            '/asistencia/i',
+            '/pase.*lista/i',
+            '/lista.*asistencia/i'
+        ];
+
+        foreach ($this->criterios as $criterio) {
+            foreach ($patronesAsistencia as $patron) {
+                if (preg_match($patron, trim($criterio['nombre']))) {
+                    return $criterio['id'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Muestra el modal para aplicar porcentajes de asistencia
      */
     public function mostrarModalAsistencias()
@@ -761,6 +887,22 @@ class Form extends Component
             ]);
             return;
         }
+
+        // Detectar automáticamente el criterio de asistencia
+        $criterioAsistenciaId = $this->detectarCriterioAsistencia();
+
+        if ($criterioAsistenciaId) {
+            // Si se detecta automáticamente, aplicar directamente
+            $this->criterioSeleccionadoId = $criterioAsistenciaId;
+            $this->aplicarPorcentajesAsistenciaDirecto();
+            return;
+        }
+
+        // Si no se detecta automáticamente, mostrar modal de selección manual
+        $this->dispatch('notify', [
+            'type' => 'warning',
+            'message' => 'No se detectó automáticamente un criterio de asistencia. Seleccione manualmente la columna correspondiente.'
+        ]);
 
         // Guardar el campo formativo seleccionado para mostrarlo en el modal
         $this->selectedCampoFormativo = $campoFormativo->toArray();
@@ -872,6 +1014,40 @@ class Form extends Component
     }
 
     /**
+     * Aplica los porcentajes de asistencia directamente al criterio detectado automáticamente
+     */
+    public function aplicarPorcentajesAsistenciaDirecto()
+    {
+        // Obtener porcentajes de asistencia
+        $this->obtenerPorcentajesAsistencia();
+
+        if (empty($this->porcentajesAsistencia)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'No se encontraron datos de asistencia para aplicar.'
+            ]);
+            return;
+        }
+
+        // Verificar si el criterio ya tiene porcentajes aplicados
+        $criterioNombre = '';
+        foreach ($this->criterios as $criterio) {
+            if ($criterio['id'] == $this->criterioSeleccionadoId) {
+                $criterioNombre = $criterio['nombre'];
+                break;
+            }
+        }
+
+        // Aplicar directamente sin confirmación adicional
+        $totalActualizados = $this->aplicarPorcentajesInterno();
+
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Porcentajes de asistencia aplicados automáticamente al criterio '{$criterioNombre}'. Se actualizaron {$totalActualizados} alumnos."
+        ]);
+    }
+
+    /**
      * Aplica los porcentajes de asistencia a la columna seleccionada
      */
     public function aplicarPorcentajesAsistencia()
@@ -883,6 +1059,40 @@ class Form extends Component
                 'message' => 'Debe seleccionar una columna para aplicar los porcentajes.'
             ]);
             return;
+        }
+
+        // Verificar si el criterio seleccionado parece ser de asistencia
+        $criterioSeleccionado = null;
+        foreach ($this->criterios as $criterio) {
+            if ($criterio['id'] == $this->criterioSeleccionadoId) {
+                $criterioSeleccionado = $criterio;
+                break;
+            }
+        }
+
+        if ($criterioSeleccionado && !isset($criterioSeleccionado['es_asistencia'])) {
+            // Verificar con regex si parece ser de asistencia
+            $patronesAsistencia = [
+                '/asistencia/i',
+                '/pase.*lista/i',
+                '/lista/i'
+            ];
+
+            $pareceAsistencia = false;
+            foreach ($patronesAsistencia as $patron) {
+                if (preg_match($patron, trim($criterioSeleccionado['nombre']))) {
+                    $pareceAsistencia = true;
+                    break;
+                }
+            }
+
+            if (!$pareceAsistencia) {
+                $this->dispatch('confirm-apply-attendance', [
+                    'criterio' => $criterioSeleccionado['nombre'],
+                    'message' => "El criterio '{$criterioSeleccionado['nombre']}' no parece estar relacionado con asistencia. ¿Está seguro de aplicar los porcentajes de asistencia a esta columna?"
+                ]);
+                return;
+            }
         }
 
         // Verificar si ya hay alguna columna con porcentajes y esta no es la misma
@@ -920,6 +1130,37 @@ class Form extends Component
             return;
         }
 
+        // Aplicar los porcentajes usando el método interno
+        $totalActualizados = $this->aplicarPorcentajesInterno();
+
+        // Cerrar el modal después de aplicar
+        $this->mostrarModalAsistencia = false;
+
+        // Notificar al usuario
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => "Se aplicaron porcentajes de asistencia a {$totalActualizados} alumnos."
+        ]);
+    }
+
+    /**
+     * Método interno para aplicar porcentajes de asistencia
+     */
+    private function aplicarPorcentajesInterno()
+    {
+        // Buscar el índice del criterio seleccionado
+        $criterioIndex = null;
+        foreach ($this->criterios as $index => $criterio) {
+            if ($criterio['id'] == $this->criterioSeleccionadoId) {
+                $criterioIndex = $index;
+                break;
+            }
+        }
+
+        if ($criterioIndex === null) {
+            return 0;
+        }
+
         // Aplicar los porcentajes de asistencia a la columna seleccionada
         $totalActualizados = 0;
 
@@ -944,6 +1185,16 @@ class Form extends Component
         // Guardar automáticamente
         $this->autosave();
 
+        return $totalActualizados;
+    }
+
+    /**
+     * Confirma la aplicación de porcentajes cuando el criterio no parece ser de asistencia
+     */
+    public function confirmarAplicarAsistencia()
+    {
+        $totalActualizados = $this->aplicarPorcentajesInterno();
+
         // Cerrar el modal después de aplicar
         $this->mostrarModalAsistencia = false;
 
@@ -961,6 +1212,13 @@ class Form extends Component
     {
         // Obtener IDs de los alumnos
         $alumnoIds = collect($this->alumnosEvaluados)->pluck('alumno_id')->toArray();
+
+        // Asegurar que las fechas estén inicializadas
+        if (empty($this->inicioMes) || empty($this->finMes)) {
+            $fecha = Carbon::now();
+            $this->inicioMes = $fecha->startOfMonth()->format('Y-m-d');
+            $this->finMes = $fecha->endOfMonth()->format('Y-m-d');
+        }
 
         // Usar el servicio de asistencia para obtener los porcentajes
         $asistenciaService = new AsistenciaService();
