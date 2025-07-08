@@ -42,6 +42,12 @@ new class extends Component
                     <x-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')" wire:navigate>
                         {{ __('Campos Formativos') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('ciclos.index')" :active="request()->routeIs('ciclos.*')" wire:navigate>
+                        {{ __('Ciclos') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('momentos.index')" :active="request()->routeIs('momentos.*')" wire:navigate>
+                        {{ __('Momentos') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -101,6 +107,12 @@ new class extends Component
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('campos-formativos.index')" :active="request()->routeIs('campos-formativos.*')" wire:navigate>
                 {{ __('Campos Formativos') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('ciclos.index')" :active="request()->routeIs('ciclos.*')" wire:navigate>
+                {{ __('Ciclos') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('momentos.index')" :active="request()->routeIs('momentos.*')" wire:navigate>
+                {{ __('Momentos') }}
             </x-responsive-nav-link>
         </div>
 
