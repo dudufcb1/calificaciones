@@ -50,14 +50,14 @@ new #[Layout('layouts.guest')] class extends Component
                     <span class="font-medium text-gray-700">Admin:</span>
                     <span class="text-gray-600">admin@demo.com</span>
                 </div>
-                <span class="text-gray-500">password</span>
+                <span class="text-gray-500">Contraseña: password</span>
             </div>
             <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
                 <div>
                     <span class="font-medium text-gray-700">Docente:</span>
                     <span class="text-gray-600">docente@demo.com</span>
                 </div>
-                <span class="text-gray-500">password</span>
+                <span class="text-gray-500">Contraseña: password</span>
             </div>
         </div>
     </div>
