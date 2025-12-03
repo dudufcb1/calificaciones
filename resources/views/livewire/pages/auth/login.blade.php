@@ -35,6 +35,34 @@ new #[Layout('layouts.guest')] class extends Component
         </p>
     </div>
 
+    @if(config('app.is_demo'))
+    <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div class="flex items-center mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-sm font-semibold text-amber-800">Modo Demo</span>
+        </div>
+        <p class="text-xs text-amber-700 mb-3">Usa estas credenciales para probar el sistema:</p>
+        <div class="space-y-2 text-xs">
+            <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
+                <div>
+                    <span class="font-medium text-gray-700">Admin:</span>
+                    <span class="text-gray-600">admin@demo.com</span>
+                </div>
+                <span class="text-gray-500">password</span>
+            </div>
+            <div class="flex justify-between items-center bg-white p-2 rounded border border-amber-100">
+                <div>
+                    <span class="font-medium text-gray-700">Docente:</span>
+                    <span class="text-gray-600">docente@demo.com</span>
+                </div>
+                <span class="text-gray-500">password</span>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <form wire:submit="login" class="space-y-6">
         <!-- Email Address -->
         <div>
